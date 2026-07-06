@@ -1,6 +1,6 @@
 {
   "name": "@sagargupta16/skillcheck",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Conformance suite for Agent Skills: lint SKILL.md against the spec, run it against real agent runtimes, publish a compatibility matrix",
   "keywords": [
     "agent-skills",
@@ -45,7 +45,8 @@
   "dependencies": {
     "commander": "^15.0.0",
     "glob": "^13.0.6",
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.2",

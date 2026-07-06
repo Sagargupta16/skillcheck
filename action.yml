@@ -1,0 +1,53 @@
+name: "SkillCheck"
+author: "Sagar Gupta"
+description: "Lint Agent Skills (SKILL.md) for spec conformance with PR annotations and SARIF output"
+branding:
+  icon: "check-circle"
+  color: "purple"
+inputs:
+  path:
+    description: "File or directory to scan recursively for SKILL.md files"
+    required: false
+    default: "."
+  fail-on:
+    description: "Minimum severity that fails the check: error | warning | never"
+    required: false
+    default: "error"
+  profile:
+    description: "Lint profile: strict (skills-ref parity) | lenient (client-guide)"
+    required: false
+    default: "strict"
+  sarif-file:
+    description: "If set, also write a SARIF 2.1.0 report to this path (feed it to github/codeql-action/upload-sarif@v4 with security-events: write)"
+    required: false
+    default: ""
+  version:
+    description: "@sagargupta16/skillcheck version to run"
+    required: false
+    default: "latest"
+outputs:
+  error-count:
+    description: "Number of errors found"
+    value: ${{ steps.lint.outputs.error-count }}
+  warning-count:
+    description: "Number of warnings found"
+    value: ${{ steps.lint.outputs.warning-count }}
+  sarif-file:
+    description: "Path to the SARIF report (empty if not requested)"
+    value: ${{ inputs.sarif-file }}
+runs:
+  using: "composite"
+  steps:
+    - id: lint
+      shell: bash
+      # Inputs flow via env, never interpolated into run: (injection safety).
+      env:
+        SC_PATH: ${{ inputs.path }}
+        SC_FAIL_ON: ${{ inputs.fail-on }}
+        SC_PROFILE: ${{ inputs.profile }}
+        SC_SARIF: ${{ inputs.sarif-file }}
+        SC_VERSION: ${{ inputs.version }}
+      run: |
+        args=(lint "$SC_PATH" --format github --fail-on "$SC_FAIL_ON" --profile "$SC_PROFILE")
+        [ -n "$SC_SARIF" ] && args+=(--sarif "$SC_SARIF")
+        npx --yes "@sagargupta16/skillcheck@${SC_VERSION}" "${args[@]}"
