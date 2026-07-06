@@ -1,0 +1,57 @@
+{
+  "name": "@sagargupta16/skillcheck",
+  "version": "0.1.0",
+  "description": "Conformance suite for Agent Skills: lint SKILL.md against the spec, run it against real agent runtimes, publish a compatibility matrix",
+  "keywords": [
+    "agent-skills",
+    "skill",
+    "SKILL.md",
+    "claude-code",
+    "conformance",
+    "lint",
+    "agents"
+  ],
+  "license": "MIT",
+  "author": "Sagar Gupta <sg85207@gmail.com> (https://github.com/Sagargupta16)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sagargupta16/skillcheck.git"
+  },
+  "type": "module",
+  "bin": {
+    "skillcheck": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.10.0",
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm build"
+  },
+  "dependencies": {
+    "commander": "^15.0.0",
+    "glob": "^13.0.6",
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.2",
+    "@types/node": "^26.1.0",
+    "tsup": "^8.5.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}
