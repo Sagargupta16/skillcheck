@@ -17,9 +17,9 @@ skillcheck is the only linter that models both tiers:
 ## Install
 
 ```bash
-pnpm add -D @sagargupta16/skillcheck
+pnpm add -D @sagargupta1610/skillcheck
 # or run directly
-pnpm dlx @sagargupta16/skillcheck lint ./skills
+pnpm dlx @sagargupta1610/skillcheck lint ./skills
 ```
 
 ## Usage

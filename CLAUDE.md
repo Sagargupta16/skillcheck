@@ -10,7 +10,7 @@
 
 ## Project
 
-Conformance suite for Agent Skills (SKILL.md): lints skills against the agentskills.io spec today; roadmap is headless cross-runtime execution tests + a public caniuse-style compatibility matrix. Public OSS, npm package `@sagargupta16/skillcheck`.
+Conformance suite for Agent Skills (SKILL.md): lints skills against the agentskills.io spec today; roadmap is headless cross-runtime execution tests + a public caniuse-style compatibility matrix. Public OSS, npm package `@sagargupta1610/skillcheck`.
 
 ## Stack
 
@@ -53,7 +53,7 @@ pnpm typecheck
 - The Agent Skills spec is UNVERSIONED -- when rules change upstream, pin claims to a spec-repo git SHA in the finding message/docs.
 - Severity model is two-tier by design: error = skills-ref strict parity, warning = client-guide lenient parity. `--strict` escalates warnings for `name-dir-match`, `extension-field`, `unknown-field`. Don't collapse the tiers.
 - `KNOWN_EXTENSIONS` in `src/lint/rules.ts` tracks Claude Code extension fields; update it when Claude Code ships new frontmatter keys.
-- Name collision landscape: getskillcheck.com is an unrelated paid static-analysis product; npm unscoped `skillcheck`/`skill-check` are taken. This package is scoped `@sagargupta16/skillcheck` on purpose.
+- Name collision landscape: getskillcheck.com is an unrelated paid static-analysis product; npm unscoped `skillcheck`/`skill-check` are taken. This package is scoped `@sagargupta1610/skillcheck` on purpose.
 
 ## Repo-specific rules
 

@@ -22,7 +22,7 @@ inputs:
     required: false
     default: ""
   version:
-    description: "@sagargupta16/skillcheck version to run"
+    description: "@sagargupta1610/skillcheck version to run"
     required: false
     default: "latest"
 outputs:
@@ -50,4 +50,4 @@ runs:
       run: |
         args=(lint "$SC_PATH" --format github --fail-on "$SC_FAIL_ON" --profile "$SC_PROFILE")
         [ -n "$SC_SARIF" ] && args+=(--sarif "$SC_SARIF")
-        npx --yes "@sagargupta16/skillcheck@${SC_VERSION}" "${args[@]}"
+        npx --yes "@sagargupta1610/skillcheck@${SC_VERSION}" "${args[@]}"

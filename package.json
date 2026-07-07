@@ -1,5 +1,5 @@
 {
-  "name": "@sagargupta16/skillcheck",
+  "name": "@sagargupta1610/skillcheck",
   "version": "0.2.0",
   "description": "Conformance suite for Agent Skills: lint SKILL.md against the spec, run it against real agent runtimes, publish a compatibility matrix",
   "keywords": [
