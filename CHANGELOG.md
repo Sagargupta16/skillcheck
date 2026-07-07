@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows [SemVer](https://semver.org/).
 
+## [0.2.1] - 2026-07-07
+
+### Changed
+
+- Docs: README with badges and terminal demo, CONTRIBUTING.md, SECURITY.md
+- CI: auto-publish to npm on GitHub release via OIDC trusted publishing (no stored tokens)
+
 ## [0.2.0] - 2026-07-06
 
 ### Added

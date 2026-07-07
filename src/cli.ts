@@ -8,7 +8,7 @@ import { crossSkillFindings, lintSkillDir } from "./lint/index.js";
 import { toSarif } from "./output/sarif.js";
 import type { LintResult, Profile } from "./types.js";
 
-const VERSION = "0.2.0";
+const VERSION = "0.2.1";
 
 const program = new Command();
 
