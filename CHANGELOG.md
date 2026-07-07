@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows [SemVer](https://semver.org/).
 
+## [0.2.2] - 2026-07-07
+
+### Fixed
+
+- SC103 (deep-reference-chain) was registered and documented but never implemented -- now fires when a referenced bundled .md itself references further bundled files
+- `skillcheck.config.json` `ignore` array was declared but never applied -- now feeds discovery, plus a new `--ignore-pattern <glob...>` flag
+- `--strict` was a silent no-op -- now warns as deprecated and conflicts loudly with `--profile lenient`
+
 ## [0.2.1] - 2026-07-07
 
 ### Changed

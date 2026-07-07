@@ -229,6 +229,31 @@ describe("structure rules", () => {
     expect(result.findings.map((f) => f.code)).toContain("SC102");
   });
 
+  it("SC103: deep reference chain flagged (info)", async () => {
+    const dir = await makeSkill(
+      "deep-chain",
+      "---\nname: deep-chain\ndescription: d\n---\nSee [guide](references/guide.md).\n",
+      {
+        "references/guide.md": "More detail in [extra](./extra.md).",
+        "references/extra.md": "leaf content",
+      },
+    );
+    const result = await lintSkillDir(dir);
+    const f = result.findings.find((x) => x.code === "SC103");
+    expect(f?.severity).toBe("info");
+    expect(f?.message).toContain("one level deep");
+  });
+
+  it("SC103: one-level references do not fire", async () => {
+    const dir = await makeSkill(
+      "flat-refs",
+      "---\nname: flat-refs\ndescription: d\n---\nSee [guide](references/guide.md).\n",
+      { "references/guide.md": "leaf content, no further refs" },
+    );
+    const result = await lintSkillDir(dir);
+    expect(result.findings.map((f) => f.code)).not.toContain("SC103");
+  });
+
   it("SC104: unreferenced bundled file (info)", async () => {
     const dir = await makeSkill(
       "unref-file",
