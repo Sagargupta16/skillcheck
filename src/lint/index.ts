@@ -84,6 +84,12 @@ export async function lintSkillDir(
     }),
   );
 
+  // SC103: a referenced bundled .md that itself references further bundled
+  // files ("Keep file references one level deep from SKILL.md").
+  findings.push(
+    ...(await deepReferenceChains(skillDir, parsed.body, bundledFiles)),
+  );
+
   const skillName =
     parsed.frontmatter && typeof parsed.frontmatter.name === "string"
       ? parsed.frontmatter.name.trim().normalize("NFKC")
@@ -132,6 +138,73 @@ function applyOverrides(findings: Finding[], options: LintOptions): Finding[] {
     out.push(o ? { ...f, severity: o } : f);
   }
   return out;
+}
+
+/** Extract relative bundled-file references from a markdown body (shared
+ * shape with rules.ts referenceChecks -- markdown links + conventional-dir
+ * inline code). */
+function extractReferences(body: string): string[] {
+  const refs = new Set<string>();
+  for (const m of body.matchAll(/\[[^\]]*\]\(([^)]+)\)/g)) {
+    const target = (m[1] ?? "").split(/[#?]/)[0]?.trim() ?? "";
+    if (target) refs.add(target);
+  }
+  for (const m of body.matchAll(
+    /`((?:scripts|references|assets)\/[^\s`]+)`/g,
+  )) {
+    refs.add((m[1] ?? "").trim());
+  }
+  return [...refs].filter(
+    (t) =>
+      !/^[a-z][a-z0-9+.-]*:\/\//i.test(t) &&
+      !t.startsWith("#") &&
+      !t.startsWith("mailto:") &&
+      !t.includes("${") &&
+      !t.includes("{{") &&
+      !/^(\/|[A-Za-z]:[\\/]|~\/)/.test(t),
+  );
+}
+
+/** SC103: referenced .md files that reference further bundled files. */
+async function deepReferenceChains(
+  skillDir: string,
+  body: string,
+  bundledFiles: string[],
+): Promise<Finding[]> {
+  const findings: Finding[] = [];
+  const bundled = new Set(bundledFiles.map((f) => f.replace(/\\/g, "/")));
+
+  for (const ref of extractReferences(body)) {
+    const normalized = ref.replace(/^\.\//, "").replace(/\\/g, "/");
+    if (!normalized.endsWith(".md") || !bundled.has(normalized)) continue;
+    let childBody: string;
+    try {
+      childBody = await readFile(join(skillDir, normalized), "utf8");
+    } catch {
+      continue;
+    }
+    const childRefs = extractReferences(childBody).filter((t) => {
+      // Resolve relative to the child file's directory.
+      const childDir = normalized.includes("/")
+        ? normalized.slice(0, normalized.lastIndexOf("/"))
+        : "";
+      const resolved =
+        t.startsWith("./") || !t.includes("/")
+          ? `${childDir ? `${childDir}/` : ""}${t.replace(/^\.\//, "")}`
+          : t;
+      return bundled.has(resolved.replace(/\\/g, "/"));
+    });
+    if (childRefs.length > 0) {
+      findings.push({
+        code: "SC103",
+        alias: "deep-reference-chain",
+        severity: "info",
+        message: `\`${normalized}\` references further bundled files (${childRefs.slice(0, 3).join(", ")}${childRefs.length > 3 ? ", ..." : ""}) -- spec recommends keeping references one level deep from SKILL.md`,
+        file: normalized,
+      });
+    }
+  }
+  return findings;
 }
 
 async function listBundledFiles(skillDir: string): Promise<string[]> {

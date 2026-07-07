@@ -8,7 +8,7 @@ import { crossSkillFindings, lintSkillDir } from "./lint/index.js";
 import { toSarif } from "./output/sarif.js";
 import type { LintResult, Profile } from "./types.js";
 
-const VERSION = "0.2.1";
+const VERSION = "0.2.2";
 
 const program = new Command();
 
@@ -24,6 +24,7 @@ interface LintFlags {
   failOn: string;
   sarif?: string;
   maxWarnings?: string;
+  ignorePattern?: string[];
 }
 
 program
@@ -53,15 +54,32 @@ program
   )
   .option("--sarif <path>", "also write a SARIF 2.1.0 report to this path")
   .option("--max-warnings <n>", "fail when warnings exceed this count")
+  .option(
+    "--ignore-pattern <glob...>",
+    "glob(s) to exclude during discovery (adds to config ignore)",
+  )
   .action(async (paths: string[], opts: LintFlags) => {
-    const skillDirs = await expandSkillDirs(paths);
+    // --strict is a deprecated no-argument alias for the default profile;
+    // it must not silently coexist with an explicit --profile lenient.
+    if (opts.strict && opts.profile === "lenient") {
+      console.error("--strict conflicts with --profile lenient; pick one");
+      process.exit(2);
+    }
+    if (opts.strict) {
+      console.error(
+        "warning: --strict is deprecated; strict is the default (use --profile)",
+      );
+    }
+
+    const config = await loadConfig();
+    const ignore = [...(config?.ignore ?? []), ...(opts.ignorePattern ?? [])];
+    const skillDirs = await expandSkillDirs(paths, ignore);
     if (skillDirs.length === 0) {
       console.error("no SKILL.md found under the given paths");
       process.exit(2);
     }
 
     const profile: Profile = opts.profile === "lenient" ? "lenient" : "strict";
-    const config = await loadConfig();
 
     const results: LintResult[] = [];
     for (const dir of skillDirs) {
@@ -154,7 +172,10 @@ async function loadConfig(): Promise<Config | null> {
 }
 
 /** Resolve inputs: a dir with SKILL.md is a skill; otherwise search below it. */
-async function expandSkillDirs(paths: string[]): Promise<string[]> {
+async function expandSkillDirs(
+  paths: string[],
+  extraIgnore: string[] = [],
+): Promise<string[]> {
   const dirs = new Set<string>();
   for (const p of paths) {
     if (
@@ -166,7 +187,7 @@ async function expandSkillDirs(paths: string[]): Promise<string[]> {
     }
     const matches = await glob("**/{SKILL,skill}.md", {
       cwd: p,
-      ignore: ["**/node_modules/**", "**/.git/**"],
+      ignore: ["**/node_modules/**", "**/.git/**", ...extraIgnore],
       absolute: true,
     });
     for (const m of matches) {

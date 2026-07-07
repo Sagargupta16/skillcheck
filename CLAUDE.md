@@ -14,7 +14,7 @@ Conformance suite for Agent Skills (SKILL.md): lints skills against the agentski
 
 ## Stack
 
-- **Language**: TypeScript 5 (strict, ESM, NodeNext)
+- **Language**: TypeScript 6 (strict, ESM, NodeNext)
 - **Framework**: none -- CLI via commander, build via tsup
 - **Database**: none
 - **Package manager**: pnpm
@@ -44,15 +44,16 @@ pnpm typecheck
 
 ## Key files
 
-- `src/lint/rules.ts` -- the "brain": all lint rules, spec fields, known client extensions, limits
+- `src/lint/rules.ts` -- the "brain": all lint rule implementations and limits
+- `src/extensions.ts` -- SPEC_FIELDS + KNOWN_EXTENSIONS typed registry (spec fields, client extension fields)
 - `src/lint/parse.ts` -- SKILL.md frontmatter/body splitter (never throws)
 - `fixtures/` -- valid-skill and broken-skill lint fixtures used by tests and CI smoke test
 
 ## Gotchas
 
 - The Agent Skills spec is UNVERSIONED -- when rules change upstream, pin claims to a spec-repo git SHA in the finding message/docs.
-- Severity model is two-tier by design: error = skills-ref strict parity, warning = client-guide lenient parity. `--strict` escalates warnings for `name-dir-match`, `extension-field`, `unknown-field`. Don't collapse the tiers.
-- `KNOWN_EXTENSIONS` in `src/lint/rules.ts` tracks Claude Code extension fields; update it when Claude Code ships new frontmatter keys.
+- Severity model is three-tier by design: error = skills-ref strict parity, warning = beyond-parity checks + client-guide downgrades, info = advisory (never gates CI). `--profile strict` is the default; `--profile lenient` downgrades `name-too-long`, `name-dir-mismatch`, `unknown-frontmatter-field` to warnings (`--strict` is a deprecated alias for the default). Don't collapse the tiers.
+- `KNOWN_EXTENSIONS` in `src/extensions.ts` tracks client extension fields (Claude Code, Cursor, Copilot, OpenCode); update it when runtimes ship new frontmatter keys.
 - Name collision landscape: getskillcheck.com is an unrelated paid static-analysis product; npm unscoped `skillcheck`/`skill-check` are taken. This package is scoped `@sagargupta1610/skillcheck` on purpose.
 
 ## Repo-specific rules
