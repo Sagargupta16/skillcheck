@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows [SemVer](https://semver.org/).
 
+## [0.2.3] - 2026-09-02
+
+### Security
+
+- Bump `brace-expansion` 5.0.7 -> 5.0.9 via pnpm override: DoS through unbounded expansion length (GHSA-mh99-v99m-4gvg) and unbounded intermediate arrays (GHSA-rgw5-rvv9-x895)
+- Bump `postcss` 8.5.16 -> 8.5.26 via pnpm override: sourceMappingURL path traversal / arbitrary .map file disclosure (GHSA-r28c-9q8g-f849) and its incomplete-fix follow-up (GHSA-fxqj-rqcc-2cmp)
+- Bump `esbuild` 0.27.7 -> 0.28.2 via pnpm override: arbitrary file read via dev server on Windows (GHSA-g7r4-m6w7-qqqr)
+
+### Changed
+
+- CI: `actions/setup-node` v7, `pnpm/action-setup` v6, non-major dependency updates (Renovate #4, #5, #8)
+
 ## [0.2.2] - 2026-07-07
 
 ### Fixed
