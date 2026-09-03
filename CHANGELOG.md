@@ -14,6 +14,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 ### Changed
 
 - CI: `actions/setup-node` v7, `pnpm/action-setup` v6, non-major dependency updates (Renovate #4, #5, #8)
+- TypeScript 6 -> 7. Declarations now come from `tsc --emitDeclarationOnly` instead of tsup's `dts` option: tsup bundles `rollup-plugin-dts@6.1.1` into its own dist, and that copy reads a compiler internal the native TypeScript 7 port dropped, so the build died on `useCaseSensitiveFileNames`. The plugin is vendored rather than installed, so no dependency bump could fix it. Published types are unchanged -- `dist/index.d.ts` still resolves through the `exports` map.
+- Dropped `ignoreDeprecations` from `tsconfig.json`; it only existed to silence the `baseUrl` that tsup's dts rollup injected.
 
 ## [0.2.2] - 2026-07-07
 
