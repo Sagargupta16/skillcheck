@@ -3,6 +3,12 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows [SemVer](https://semver.org/).
 
+## [0.2.4] - 2026-09-03
+
+### Changed
+
+- Renovate now extends the shared Sagargupta16 preset (grouped monthly deps PR, first week; immediate security fixes).
+
 ## [0.2.3] - 2026-09-02
 
 ### Security
