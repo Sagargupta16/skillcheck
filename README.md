@@ -133,7 +133,7 @@ Codes and kebab-case aliases are interchangeable. Zero-config works.
 ```bash
 pnpm install
 pnpm test        # vitest (40 tests incl. skills-ref parity + i18n cases)
-pnpm build       # tsup -> dist/
+pnpm build       # tsup -> dist/*.js, tsc --emitDeclarationOnly -> dist/*.d.ts
 pnpm lint        # biome
 node dist/cli.js lint fixtures/valid-skill
 ```
