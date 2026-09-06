@@ -1,0 +1,61 @@
+name: Bug report
+description: A rule fires when it should not, stays quiet when it should not, or the CLI misbehaves
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For a linter the input file is the entire repro. Four lines of frontmatter is usually enough -- please do not attach a whole repository.
+  - type: textarea
+    id: skill-md
+    attributes:
+      label: SKILL.md
+      description: The smallest SKILL.md that reproduces this. Redact anything private first -- names, paths, internal URLs.
+      render: markdown
+      placeholder: |
+        ---
+        name: my-skill
+        description: what it does and when to use it
+        ---
+        body
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Command
+      description: Exactly what you ran, flags included.
+      placeholder: skillcheck lint ./my-skill --fail-on warning
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual findings
+      description: Paste the output verbatim.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected findings
+      description: Which rule codes you expected, and which you did not. If the claim is a skills-ref parity gap, link the validator source line.
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: skillcheck and node versions
+      description: Output of `skillcheck --version` and `node --version`.
+      placeholder: skillcheck 0.2.2, node v22.20.0
+    validations:
+      required: true
+  - type: textarea
+    id: bundled-files
+    attributes:
+      label: Bundled files
+      description: Optional. For SC101/SC103/SC104 reports, list the files in the skill directory (`ls -R ./my-skill`).
+      render: text
+    validations:
+      required: false

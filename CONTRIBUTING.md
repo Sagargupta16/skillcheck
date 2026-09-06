@@ -25,8 +25,8 @@ pnpm test
 1. Register it in `src/lint/registry.ts` (code, alias, severity, fixable, summary).
 2. Implement the check in `src/lint/rules.ts` (or `src/lint/index.ts` for filesystem-level checks).
 3. Add tests in `tests/lint.test.ts`.
-4. Regenerate `docs/rules.md` (script in the repo README's development section).
+4. Regenerate the rule reference with `pnpm docs:rules`. CI regenerates it too and fails on any diff, so a hand-edited `docs/rules.md` will not pass.
 
 ## Reporting bugs
 
-Open an issue with the SKILL.md content that misbehaves (redact anything private) and the expected vs actual findings.
+Open a [bug report](https://github.com/Sagargupta16/skillcheck/issues/new?template=bug_report.yml) with the SKILL.md content that misbehaves (redact anything private) and the expected vs actual findings. For a linter the input file is the whole repro -- four lines of frontmatter is usually enough.
