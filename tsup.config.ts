@@ -1,4 +1,9 @@
+import { readFileSync } from "node:fs";
 import { defineConfig } from "tsup";
+
+const pkg = JSON.parse(
+  readFileSync(new URL("package.json", import.meta.url), "utf8"),
+) as { version: string };
 
 export default defineConfig({
   entry: ["src/index.ts", "src/cli.ts"],
@@ -14,4 +19,8 @@ export default defineConfig({
   dts: false,
   clean: true,
   target: "node22",
+  // package.json is the single source of truth for the version. Inlining it
+  // here keeps `--version` and the SARIF tool.driver.version honest without a
+  // runtime file read or a second constant to forget.
+  define: { __SKILLCHECK_VERSION__: JSON.stringify(pkg.version) },
 });

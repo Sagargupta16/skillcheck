@@ -1,14 +1,26 @@
 #!/usr/bin/env node
 import { appendFile, readFile, stat, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { Command } from "commander";
 import { glob } from "glob";
 import { checkEvals, initEvals } from "./evals/index.js";
 import { crossSkillFindings, lintSkillDir } from "./lint/index.js";
+import { toWorkflowCommands } from "./output/github.js";
 import { toSarif } from "./output/sarif.js";
 import type { LintResult, Profile } from "./types.js";
 
-const VERSION = "0.2.2";
+/** Replaced at build time by tsup's `define` (see tsup.config.ts) so the CLI,
+ * the SARIF `tool.driver.version` and package.json can never disagree. Falls
+ * back when the sources are run directly (vitest, `node --strip-types`). */
+declare const __SKILLCHECK_VERSION__: string | undefined;
+const VERSION =
+  typeof __SKILLCHECK_VERSION__ === "string"
+    ? __SKILLCHECK_VERSION__
+    : "0.0.0-dev";
+
+const FORMATS = ["pretty", "concise", "json", "github", "sarif"] as const;
+const PROFILES = ["strict", "lenient"] as const;
+const FAIL_ON = ["error", "warning", "never"] as const;
 
 const program = new Command();
 
@@ -27,6 +39,22 @@ interface LintFlags {
   ignorePattern?: string[];
 }
 
+/** Exit 2 ("usage or internal error") on a bad flag value. Silently coercing an
+ * unrecognized value is worse than failing: `--fail-on wraning` would quietly
+ * downgrade the CI gate to errors-only, and action.yml passes `fail-on` and
+ * `profile` straight through from workflow inputs. */
+function requireChoice(
+  flag: string,
+  value: string,
+  allowed: readonly string[],
+): void {
+  if (allowed.includes(value)) return;
+  console.error(
+    `invalid value for ${flag}: '${value}' (expected one of: ${allowed.join(", ")})`,
+  );
+  process.exit(2);
+}
+
 program
   .command("lint")
   .description(
@@ -34,7 +62,7 @@ program
   )
   .argument(
     "<paths...>",
-    "skill directories (or parents containing */SKILL.md)",
+    "skill directories, a SKILL.md file, or parents containing */SKILL.md",
   )
   .option("--strict", "deprecated alias for --profile strict (default)", false)
   .option(
@@ -71,6 +99,11 @@ program
       );
     }
 
+    requireChoice("--profile", opts.profile, PROFILES);
+    requireChoice("--format", opts.format, FORMATS);
+    requireChoice("--fail-on", opts.failOn, FAIL_ON);
+    const maxWarnings = parseMaxWarnings(opts.maxWarnings);
+
     const config = await loadConfig();
     const ignore = [...(config?.ignore ?? []), ...(opts.ignorePattern ?? [])];
     const skillDirs = await expandSkillDirs(paths, ignore);
@@ -101,10 +134,6 @@ program
 
     const errors = results.reduce((s, r) => s + r.errorCount, 0);
     const warnings = results.reduce((s, r) => s + r.warningCount, 0);
-    const maxWarnings =
-      opts.maxWarnings === undefined
-        ? Number.POSITIVE_INFINITY
-        : Number(opts.maxWarnings);
 
     let failed = false;
     if (opts.failOn === "never") failed = false;
@@ -162,6 +191,21 @@ interface Config {
   ignore?: string[];
 }
 
+/** `--max-warnings` as a non-negative integer. `Number("abc")` is NaN, and
+ * `warnings > NaN` is always false, so an unvalidated typo turned the gate off
+ * entirely. Absent means no ceiling. */
+function parseMaxWarnings(raw: string | undefined): number {
+  if (raw === undefined) return Number.POSITIVE_INFINITY;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 0) {
+    console.error(
+      `invalid value for --max-warnings: '${raw}' (expected a non-negative integer)`,
+    );
+    process.exit(2);
+  }
+  return n;
+}
+
 async function loadConfig(): Promise<Config | null> {
   try {
     const raw = await readFile("skillcheck.config.json", "utf8");
@@ -171,13 +215,29 @@ async function loadConfig(): Promise<Config | null> {
   }
 }
 
-/** Resolve inputs: a dir with SKILL.md is a skill; otherwise search below it. */
+/** Resolve inputs: a SKILL.md file resolves to its parent, a dir with SKILL.md
+ * is a skill, any other dir is searched below. */
 async function expandSkillDirs(
   paths: string[],
   extraIgnore: string[] = [],
 ): Promise<string[]> {
   const dirs = new Set<string>();
   for (const p of paths) {
+    const info = await statOrNull(p);
+    // skills-ref validate() messages -- a misconfigured Action input should
+    // say what is wrong with the path, not "no SKILL.md found".
+    if (info === null) {
+      console.error(`Path does not exist: ${p}`);
+      process.exit(2);
+    }
+    if (info.isFile()) {
+      if (!/^skill\.md$/i.test(basename(p))) {
+        console.error(`Not a directory: ${p}`);
+        process.exit(2);
+      }
+      dirs.add(dirname(p) || ".");
+      continue;
+    }
     if (
       (await exists(join(p, "SKILL.md"))) ||
       (await exists(join(p, "skill.md")))
@@ -197,13 +257,18 @@ async function expandSkillDirs(
   return [...dirs].sort();
 }
 
-async function exists(path: string): Promise<boolean> {
+async function statOrNull(
+  path: string,
+): Promise<import("node:fs").Stats | null> {
   try {
-    await stat(path);
-    return true;
+    return await stat(path);
   } catch {
-    return false;
+    return null;
   }
+}
+
+async function exists(path: string): Promise<boolean> {
+  return (await statOrNull(path)) !== null;
 }
 
 function recount(r: LintResult): void {
@@ -243,7 +308,7 @@ async function emitGithubOutputs(results: LintResult[]): Promise<void> {
       for (const r of withFindings) {
         for (const f of r.findings.slice(0, 50)) {
           lines.push(
-            `| ${r.skillName ?? r.skillDir} | ${f.code} | ${f.severity} | ${f.message.replace(/\|/g, "\\|")} |`,
+            `| ${r.skillName ?? r.skillDir} | ${f.code} | ${f.severity} | ${f.message.replace(/\|/g, "\\|").replace(/\r?\n/g, " ")} |`,
           );
         }
       }
@@ -265,20 +330,8 @@ function report(results: LintResult[], format: string): void {
 
   if (format === "github") {
     // Workflow commands: inline PR annotations (caps: 10/type/step).
-    for (const r of results) {
-      for (const f of r.findings) {
-        const level =
-          f.severity === "error"
-            ? "error"
-            : f.severity === "warning"
-              ? "warning"
-              : "notice";
-        const file = join(r.skillDir, f.file);
-        console.log(
-          `::${level} file=${file},line=${f.line ?? 1},title=${f.code} ${f.alias}::${f.message}`,
-        );
-      }
-    }
+    // Paths and escaping live in output/github.ts.
+    for (const line of toWorkflowCommands(results)) console.log(line);
     return;
   }
 

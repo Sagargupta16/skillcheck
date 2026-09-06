@@ -1,6 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { basename, join, relative, resolve } from "node:path";
 import type { Finding, LintOptions, LintResult, Severity } from "../types.js";
+import { extractBodyReferences } from "./links.js";
 import { parseSkillMd } from "./parse.js";
 import { getRule } from "./registry.js";
 import { runRules } from "./rules.js";
@@ -140,21 +141,11 @@ function applyOverrides(findings: Finding[], options: LintOptions): Finding[] {
   return out;
 }
 
-/** Extract relative bundled-file references from a markdown body (shared
- * shape with rules.ts referenceChecks -- markdown links + conventional-dir
- * inline code). */
+/** Bundled-file references from a markdown body, minus the things that are
+ * never bundled paths (URLs, anchors, template placeholders, absolute paths).
+ * Extraction itself is shared with rules.ts via links.ts. */
 function extractReferences(body: string): string[] {
-  const refs = new Set<string>();
-  for (const m of body.matchAll(/\[[^\]]*\]\(([^)]+)\)/g)) {
-    const target = (m[1] ?? "").split(/[#?]/)[0]?.trim() ?? "";
-    if (target) refs.add(target);
-  }
-  for (const m of body.matchAll(
-    /`((?:scripts|references|assets)\/[^\s`]+)`/g,
-  )) {
-    refs.add((m[1] ?? "").trim());
-  }
-  return [...refs].filter(
+  return extractBodyReferences(body).filter(
     (t) =>
       !/^[a-z][a-z0-9+.-]*:\/\//i.test(t) &&
       !t.startsWith("#") &&

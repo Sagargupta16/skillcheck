@@ -4,6 +4,7 @@ import {
   validateExtensionValue,
 } from "../extensions.js";
 import type { Finding, ParsedSkill, Profile, Severity } from "../types.js";
+import { extractBodyReferences } from "./links.js";
 import { getRule } from "./registry.js";
 
 const NAME_MAX = 64;
@@ -48,6 +49,14 @@ function make(
   };
 }
 
+/** Render a string list the way Python's f-string renders `sorted(set)`.
+ * skills-ref's unknown-field message is `f"Only {sorted(ALLOWED_FIELDS)} are
+ * allowed."`, so the literal output carries the brackets and single quotes.
+ * Reproduced verbatim -- the error tier claims byte parity. */
+function pythonListRepr(items: string[]): string {
+  return `[${items.map((i) => `'${i}'`).join(", ")}]`;
+}
+
 /** Apply profile downgrades (client-guide lenient tier). */
 function applyProfile(findings: Finding[], profile: Profile): Finding[] {
   if (profile !== "lenient") return findings;
@@ -80,6 +89,36 @@ export function runRules(ctx: RuleContext): Finding[] {
   }
 
   const fm = parsed.frontmatter;
+
+  // --- unknown / extension fields ---
+  // Order matters for parity: skills-ref validate_metadata() calls
+  // _validate_metadata_fields() FIRST, so the unknown-fields error precedes the
+  // name and description errors.
+  const extras: string[] = [];
+  for (const key of Object.keys(fm)) {
+    if (SPEC_FIELDS.has(key)) continue;
+    if (key in KNOWN_EXTENSIONS) {
+      const ext = KNOWN_EXTENSIONS[key];
+      findings.push(
+        make(
+          "SC301",
+          `\`${key}\` is a client extension (${ext?.runtimes.join(", ")}), not in the Agent Skills spec -- fails strict skills-ref validation${ext?.deprecated ? `; ${ext.deprecated}` : ""}`,
+        ),
+      );
+      const valueErr = validateExtensionValue(key, fm[key]);
+      if (valueErr) findings.push(make("SC302", valueErr));
+    } else {
+      extras.push(key);
+    }
+  }
+  if (extras.length > 0) {
+    findings.push(
+      make(
+        "SC018",
+        `Unexpected fields in frontmatter: ${extras.sort().join(", ")}. Only ${pythonListRepr([...SPEC_FIELDS].sort())} are allowed.`,
+      ),
+    );
+  }
 
   // --- name (skills-ref _validate_name, in order, with early return) ---
   if (!("name" in fm)) {
@@ -124,12 +163,13 @@ export function runRules(ctx: RuleContext): Finding[] {
         ),
       );
     }
-    const normalizedDir = dirName.normalize("NFKC");
-    if (name !== normalizedDir) {
+    // Parity: skills-ref compares the NFKC-normalized directory name but
+    // interpolates the RAW `skill_dir.name` into the message.
+    if (name !== dirName.normalize("NFKC")) {
       findings.push(
         make(
           "SC014",
-          `Directory name '${normalizedDir}' must match skill name '${name}'`,
+          `Directory name '${dirName}' must match skill name '${name}'`,
         ),
       );
     }
@@ -213,35 +253,6 @@ export function runRules(ctx: RuleContext): Finding[] {
         make("SC302", "`allowed-tools` must be a space-separated string"),
       );
     }
-  }
-
-  // --- unknown / extension fields ---
-  const extras: string[] = [];
-  for (const key of Object.keys(fm)) {
-    if (SPEC_FIELDS.has(key)) continue;
-    if (key in KNOWN_EXTENSIONS) {
-      const ext = KNOWN_EXTENSIONS[key];
-      findings.push(
-        make(
-          "SC301",
-          `\`${key}\` is a client extension (${ext?.runtimes.join(", ")}), not in the Agent Skills spec -- fails strict skills-ref validation${ext?.deprecated ? `; ${ext.deprecated}` : ""}`,
-        ),
-      );
-      const valueErr = validateExtensionValue(key, fm[key]);
-      if (valueErr) findings.push(make("SC302", valueErr));
-    } else {
-      extras.push(key);
-    }
-  }
-  if (extras.length > 0) {
-    const allowed = [...SPEC_FIELDS].sort().join(", ");
-    findings.push(
-      // skills-ref verbatim: period before "Only", "are allowed."
-      make(
-        "SC018",
-        `Unexpected fields in frontmatter: ${extras.sort().join(", ")}. Only ${allowed} are allowed.`,
-      ),
-    );
   }
 
   // --- body checks (SC2xx) ---
@@ -331,19 +342,8 @@ function referenceChecks(
   const body = parsed.body;
   const bundled = new Set(bundledFiles.map((f) => f.replace(/\\/g, "/")));
 
-  const referenced = new Set<string>();
-
-  // markdown links: [text](target)
-  for (const m of body.matchAll(/\[[^\]]*\]\(([^)]+)\)/g)) {
-    const target = (m[1] ?? "").split(/[#?]/)[0]?.trim() ?? "";
-    if (target) referenced.add(target);
-  }
-  // inline-code tokens pointing into conventional dirs
-  for (const m of body.matchAll(
-    /`((?:scripts|references|assets)\/[^\s`]+)`/g,
-  )) {
-    referenced.add((m[1] ?? "").trim());
-  }
+  // markdown link destinations + conventional-dir inline code (see links.ts)
+  const referenced = new Set(extractBodyReferences(body));
 
   for (const target of referenced) {
     if (/^[a-z][a-z0-9+.-]*:\/\//i.test(target) || target.startsWith("mailto:"))
