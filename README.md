@@ -7,17 +7,18 @@
 
 Conformance suite for [Agent Skills](https://agentskills.io) (`SKILL.md`).
 
-Linters check syntax. skillcheck checks reality: 36 rules with exact [skills-ref](https://github.com/agentskills/agentskills/tree/main/skills-ref) parity (verified against the reference validator's source, message for message), client-extension awareness across 6 runtimes, structure and reference validation, trigger-test scaffolding, SARIF output, and a drop-in GitHub Action.
+Linters check syntax. skillcheck checks reality: 36 rules with exact [skills-ref](https://github.com/agentskills/agentskills/tree/main/skills-ref) parity (verified against the reference validator's source, message for message), a 19-field client-extension registry across 3 runtimes, structure and reference validation, trigger-test scaffolding, SARIF output, and a drop-in GitHub Action.
 
 ```
 $ skillcheck lint ./skills
 
-commit-helper  ./skills/commit-helper
+commit_helper  ./skills/commit-helper
+  WARN [SC301 extension-field] `model` is a client extension (claude-code), not in the Agent Skills spec -- fails strict skills-ref validation
   ERR  [SC013 name-invalid-chars] Skill name 'commit_helper' contains invalid characters. Only letters, digits, and hyphens are allowed.
-  WARN [SC301 extension-field] `model` is a client extension (claude-code), not in the Agent Skills spec
+  ERR  [SC014 name-dir-mismatch] Directory name 'commit-helper' must match skill name 'commit_helper'
   WARN [SC101 broken-relative-reference] referenced file `references/style.md` does not exist in the skill directory
 
-16 skill(s) checked: 1 error(s), 2 warning(s), 0 info
+1 skill(s) checked: 2 error(s), 2 warning(s), 0 info
 ```
 
 ## Why
@@ -44,6 +45,7 @@ pnpm add -D @sagargupta1610/skillcheck
 
 ```bash
 skillcheck lint ./my-skill                 # one skill
+skillcheck lint ./my-skill/SKILL.md        # or point straight at the file
 skillcheck lint ./skills                   # every SKILL.md under a tree
 skillcheck lint . --profile lenient        # client-guide severities
 skillcheck lint . --format concise         # one line per finding
@@ -52,12 +54,15 @@ skillcheck lint . --format sarif           # SARIF 2.1.0 to stdout
 skillcheck lint . --sarif report.sarif     # sidecar SARIF alongside any format
 skillcheck lint . --fail-on warning        # stricter CI gate
 skillcheck lint . --max-warnings 10
+skillcheck lint . --ignore-pattern 'fixtures/**' 'vendor/**'
 
 skillcheck eval init ./my-skill            # scaffold evals/evals.json
 skillcheck eval check ./my-skill           # validate it
 ```
 
-Exit codes: `0` clean, `1` findings at or above `--fail-on`, `2` usage or internal error.
+`--ignore-pattern` adds to the `ignore` array in `skillcheck.config.json` rather than replacing it.
+
+Exit codes: `0` clean, `1` findings at or above `--fail-on`, `2` usage or internal error. An unrecognized `--profile`, `--format`, `--fail-on` or `--max-warnings` value is a usage error, not a silent fallback -- a typo in a workflow file fails loudly instead of quietly weakening the gate.
 
 ## GitHub Action
 
@@ -67,7 +72,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: Sagargupta16/skillcheck@v0.2.0
+      - uses: Sagargupta16/skillcheck@v0.2.2
         with:
           path: skills/
           fail-on: error
@@ -100,7 +105,7 @@ Parity details worth knowing:
 - NFKC normalization applies to names and directory comparison -- composed vs decomposed `café` never false-positives.
 - The frontmatter splitter replicates skills-ref's `split("---", 2)` semantics, including its known edge case (a literal `---` inside YAML values).
 - Strict-YAML semantics are enforced on top of the JS parser: flow collections, tags, and duplicate keys are rejected, like `strictyaml`.
-- The 18-field extension registry knows which runtimes read each field (`model` is Claude Code only; `paths` is Claude Code + Cursor; OpenCode and Gemini ignore all of them) and validates values (`effort: extreme` flags SC302).
+- The 19-field extension registry knows which of the three modeled runtimes read each field -- `model` is Claude Code only, `paths` is Claude Code + Cursor, `globs` is Cursor legacy -- and validates values (`effort: extreme` flags SC302). Fields absent from a runtime's current published frontmatter reference stay registered, so they warn instead of erroring, and say so in the message.
 
 ## Configuration
 
@@ -111,11 +116,14 @@ Optional `skillcheck.config.json` in your project root:
   "rules": {
     "SC104": "off",
     "extension-field": "error"
-  }
+  },
+  "ignore": ["fixtures/**", "**/vendor/**"]
 }
 ```
 
 Codes and kebab-case aliases are interchangeable. Zero-config works.
+
+`ignore` takes globs applied during discovery, relative to each path you pass on the command line, so vendored or fixture skills never reach the rules. `node_modules` and `.git` are always excluded.
 
 ## Evals (trigger tests)
 
@@ -132,13 +140,24 @@ Codes and kebab-case aliases are interchangeable. Zero-config works.
 
 ```bash
 pnpm install
-pnpm test        # vitest (40 tests incl. skills-ref parity + i18n cases)
+pnpm test        # vitest: skills-ref parity, i18n names, workflow-command escaping
 pnpm build       # tsup -> dist/*.js, tsc --emitDeclarationOnly -> dist/*.d.ts
 pnpm lint        # biome
+pnpm docs:rules  # regenerate docs/rules.md from src/lint/registry.ts
 node dist/cli.js lint fixtures/valid-skill
 ```
 
 Contributions welcome -- see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## More AI Developer Tools
+
+| Repo | What it is |
+| --- | --- |
+| [claude-code-recipes](https://github.com/Sagargupta16/claude-code-recipes) | Copy-paste recipes for Claude Code: commands, subagents, hooks, skills, MCP integration, workflow patterns |
+| [claude-skills](https://github.com/Sagargupta16/claude-skills) | Claude Code plugin marketplace with skills for FARM stack, open source contributions, repo maintenance and portfolio management |
+| [agent-recipes](https://github.com/Sagargupta16/agent-recipes) | Copy-paste AI agent workflows for real dev tasks: code review, testing, security scanning, DevOps automation |
+| [mcp-toolkit](https://github.com/Sagargupta16/mcp-toolkit) | TypeScript middleware toolkit for MCP servers: authentication, caching, rate limiting, CORS, logging (beta) |
+| [claude-cost-optimizer](https://github.com/Sagargupta16/claude-cost-optimizer) | Strategies, benchmarks and copy-paste configs for cutting Claude Code spend |
 
 ## License
 

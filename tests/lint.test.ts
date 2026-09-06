@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { crossSkillFindings, lintSkillDir } from "../src/lint/index.js";
+import { parseLinkTarget } from "../src/lint/links.js";
 import { parseSkillMd } from "../src/lint/parse.js";
 
 const fixtures = join(
@@ -140,7 +141,11 @@ describe("name rules (i18n parity with skills-ref)", () => {
     );
   });
 
-  it("exact message: unknown fields (period before Only, 'are allowed.')", async () => {
+  it("exact message: unknown fields (period before Only, Python list repr)", async () => {
+    // skills-ref _validate_metadata_fields:
+    //   f"Only {sorted(ALLOWED_FIELDS)} are allowed."
+    // is an f-string of a Python list, so the brackets and single quotes are
+    // part of the rendered message.
     const dir = await makeSkill(
       "unknown-fields",
       "---\nname: unknown-fields\ndescription: d\nzzz: 1\naaa: 2\n---\nbody\n",
@@ -148,7 +153,39 @@ describe("name rules (i18n parity with skills-ref)", () => {
     const result = await lintSkillDir(dir);
     const f = result.findings.find((x) => x.code === "SC018");
     expect(f?.message).toBe(
-      "Unexpected fields in frontmatter: aaa, zzz. Only allowed-tools, compatibility, description, license, metadata, name are allowed.",
+      "Unexpected fields in frontmatter: aaa, zzz. Only ['allowed-tools', 'compatibility', 'description', 'license', 'metadata', 'name'] are allowed.",
+    );
+  });
+
+  it("check order: unknown fields precede name and description errors", async () => {
+    // skills-ref validate_metadata() calls _validate_metadata_fields() first.
+    const dir = await makeSkill(
+      "order-check",
+      "---\nname: WRONG_NAME\nzzz: 1\n---\nbody\n",
+    );
+    const result = await lintSkillDir(dir);
+    const codes = result.findings.map((f) => f.code);
+    expect(codes).toContain("SC018");
+    expect(codes).toContain("SC010");
+    expect(codes).toContain("SC007");
+    expect(codes.indexOf("SC018")).toBeLessThan(codes.indexOf("SC010"));
+    expect(codes.indexOf("SC018")).toBeLessThan(codes.indexOf("SC007"));
+  });
+
+  it("exact message: dir mismatch prints the RAW directory name", async () => {
+    // skills-ref compares the NFKC-normalized directory name but interpolates
+    // the raw `skill_dir.name`. Fullwidth latin is the clearest probe: NFKC
+    // folds it to ASCII, so a normalized message would read 'wide-dir'.
+    const rawDir = "ｗｉｄｅ-dir";
+    expect(rawDir.normalize("NFKC")).toBe("wide-dir");
+    const dir = await makeSkill(
+      rawDir,
+      "---\nname: other-name\ndescription: d\n---\nbody\n",
+    );
+    const result = await lintSkillDir(dir);
+    const f = result.findings.find((x) => x.code === "SC014");
+    expect(f?.message).toBe(
+      `Directory name '${rawDir}' must match skill name 'other-name'`,
     );
   });
 
@@ -195,6 +232,33 @@ describe("extension fields", () => {
     const ext = result.findings.filter((f) => f.code === "SC301");
     expect(ext.length).toBe(3);
     expect(result.errorCount).toBe(0);
+  });
+
+  it("`background` is a known Claude Code extension, not SC018", async () => {
+    // code.claude.com/docs/en/skills: boolean, v2.1.218+, `context: fork` only.
+    const dir = await makeSkill(
+      "fork-bg",
+      "---\nname: fork-bg\ndescription: d\ncontext: fork\nbackground: false\n---\nbody\n",
+    );
+    const result = await lintSkillDir(dir);
+    expect(result.findings.map((f) => f.code)).not.toContain("SC018");
+    expect(result.errorCount).toBe(0);
+    expect(
+      result.findings.some(
+        (f) => f.code === "SC301" && f.message.includes("`background`"),
+      ),
+    ).toBe(true);
+  });
+
+  it("extension booleans accept YAML 1.1 spellings (yes/no/on/off/1/0)", async () => {
+    // Claude Code v2.1.218+ accepts these in any case; the YAML 1.2 core schema
+    // this parser follows leaves them as strings/numbers.
+    const dir = await makeSkill(
+      "bool-words",
+      "---\nname: bool-words\ndescription: d\nuser-invocable: no\ndisable-model-invocation: ON\nbackground: 1\n---\nbody\n",
+    );
+    const result = await lintSkillDir(dir);
+    expect(result.findings.filter((f) => f.code === "SC302")).toEqual([]);
   });
 
   it("invalid extension values flag SC302", async () => {
@@ -362,5 +426,62 @@ describe("fixtures", () => {
     expect(codes).toContain("SC301"); // model extension
     expect(codes).toContain("SC201"); // empty body
     expect(result.errorCount).toBeGreaterThan(0);
+  });
+});
+
+describe("markdown link destinations (SC101 false-positive guards)", () => {
+  it("link titles and angle-bracket destinations resolve to the bare path", async () => {
+    // CommonMark allows `[t](dest "title")` and `[t](<dest with spaces>)`.
+    // Both used to resolve to a literal path including the title or brackets,
+    // so an idiomatic titled link failed a `--fail-on warning` gate.
+    const dir = await makeSkill(
+      "titled-links",
+      '---\nname: titled-links\ndescription: d\n---\nSee [ref](references/a.md "Reference guide") and [spaced](<references/a b.md>).\n',
+      { "references/a.md": "x", "references/a b.md": "y" },
+    );
+    const result = await lintSkillDir(dir);
+    expect(result.findings.filter((f) => f.code === "SC101")).toEqual([]);
+  });
+
+  it("a titled link to a missing file still fires, with the title stripped", async () => {
+    const dir = await makeSkill(
+      "titled-broken",
+      '---\nname: titled-broken\ndescription: d\n---\nSee [ref](references/gone.md "Reference guide").\n',
+      { "references/a.md": "x" },
+    );
+    const result = await lintSkillDir(dir);
+    const f = result.findings.find((x) => x.code === "SC101");
+    expect(f?.message).toBe(
+      "referenced file `references/gone.md` does not exist in the skill directory",
+    );
+  });
+
+  it("parseLinkTarget: destinations, titles, fragments", () => {
+    expect(parseLinkTarget("references/a.md")).toBe("references/a.md");
+    expect(parseLinkTarget('references/a.md "Reference guide"')).toBe(
+      "references/a.md",
+    );
+    expect(parseLinkTarget("references/a.md 'single'")).toBe("references/a.md");
+    expect(parseLinkTarget("<references/a b.md>")).toBe("references/a b.md");
+    expect(parseLinkTarget('<references/a b.md> "t"')).toBe(
+      "references/a b.md",
+    );
+    expect(parseLinkTarget("references/a.md#anchor")).toBe("references/a.md");
+    expect(parseLinkTarget("  references/a.md  ")).toBe("references/a.md");
+    expect(parseLinkTarget("#anchor-only")).toBe("");
+  });
+
+  it("SC103 uses the same destination parsing as SC101", async () => {
+    const dir = await makeSkill(
+      "titled-chain",
+      '---\nname: titled-chain\ndescription: d\n---\nSee [guide](references/guide.md "The guide").\n',
+      {
+        "references/guide.md": 'More in [extra](./extra.md "Extra").',
+        "references/extra.md": "leaf",
+      },
+    );
+    const result = await lintSkillDir(dir);
+    expect(result.findings.map((f) => f.code)).toContain("SC103");
+    expect(result.findings.filter((f) => f.code === "SC101")).toEqual([]);
   });
 });

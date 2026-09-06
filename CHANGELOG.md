@@ -3,6 +3,32 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows [SemVer](https://semver.org/).
 
+As of 2026-09-06, 0.2.3 and 0.2.4 are merged on `main` but not yet tagged, released or published; the newest tag, GitHub release and npm version are all 0.2.2.
+
+## [Unreleased]
+
+### Fixed
+
+- `--format github` emitted an absolute `file=` path, so GitHub could not match the annotation to the pull-request diff and rendered a detached log line instead of an inline comment. Both output formats now share one `repoRelative()` helper.
+- `--format github` interpolated raw finding text into the workflow command. A SKILL.md whose YAML parse-error context is itself `::error title=...::` published a second command on the Actions command channel (in scope per SECURITY.md). Message payloads and property values are now escaped per GitHub's workflow-command reference, and the output is always exactly one line per finding. The `GITHUB_STEP_SUMMARY` table also collapses newlines that previously broke the markdown.
+- SC101 fired on CommonMark links carrying a title (`[t](references/a.md "Guide")`) or an angle-bracket destination (`[t](<references/a b.md>)`), failing valid skills under `--fail-on warning`. Destination parsing moved to `src/lint/links.ts` and is shared by the SC101 and SC103 extractors, which each carried an identical copy of the bug.
+- `background` (Claude Code v2.1.218+, boolean, `context: fork` only) was missing from the extension registry, so a valid forked Claude Code skill got a hard SC018 error. Registry re-verified 2026-09-06 against code.claude.com/docs/en/skills; `display-name`, `default-enabled`, `fallback` and `version` are no longer in that reference and now say so in their SC301 message.
+- SC302 rejected the YAML 1.1 boolean spellings Claude Code accepts for extension fields (`yes`/`no`/`on`/`off`/`1`/`0`, any case), so `user-invocable: no` false-flagged. Spec fields keep strict skills-ref parity.
+- `--version` and the SARIF `tool.driver.version` reported a hardcoded 0.2.2 that had drifted from package.json. The version is now injected from package.json at build time.
+- An unrecognized `--profile`, `--format`, `--fail-on` or `--max-warnings` value was silently coerced instead of failing, so a workflow typo quietly weakened the CI gate (`--fail-on wraning` fell back to errors-only; `--max-warnings abc` produced `NaN` and disabled the ceiling). All four now exit 2.
+- A direct `SKILL.md` path resolves to its parent directory, which `action.yml` has always documented its `path` input as accepting. A nonexistent or non-directory path now reports skills-ref's own `Path does not exist:` / `Not a directory:` message instead of `no SKILL.md found under the given paths`.
+- Three skills-ref parity gaps: SC018 now renders `Only {sorted(ALLOWED_FIELDS)}` as Python does (brackets and quotes included), the unknown-field check runs before the name and description checks as `validate_metadata()` does, and SC014 prints the raw directory name while still comparing the NFKC-normalized form.
+
+### Added
+
+- `pnpm docs:rules` (`scripts/gen-rules-doc.ts`) generates `docs/rules.md` from the rule registry, the workflow CONTRIBUTING.md has always described. CI regenerates and diffs it, so the table cannot drift.
+- [docs/evals.md](docs/evals.md): user-facing reference for the `evals/evals.json` format, including which parts are skill-creator-compatible and what SC401 versus SC402 check.
+- Bug-report issue form requiring the offending SKILL.md, the command run, and expected versus actual findings.
+
+### Changed
+
+- CI runs a matrix over ubuntu/windows and node 22/24. Node 22 is the `engines` floor and tsup's target, and Windows behavior is load-bearing for SKILL.md discovery (case-insensitive filesystems) and path normalization.
+
 ## [0.2.4] - 2026-09-03
 
 ### Changed

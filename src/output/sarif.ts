@@ -1,6 +1,6 @@
-import { relative } from "node:path";
 import { RULES } from "../lint/registry.js";
 import type { LintResult, Severity } from "../types.js";
+import { repoRelative } from "./paths.js";
 
 const LEVEL: Record<Severity, string> = {
   error: "error",
@@ -44,10 +44,7 @@ export function toSarif(
               {
                 physicalLocation: {
                   artifactLocation: {
-                    uri: relative(cwd, `${result.skillDir}/${f.file}`).replace(
-                      /\\/g,
-                      "/",
-                    ),
+                    uri: repoRelative(result.skillDir, f.file, cwd),
                   },
                   region: { startLine: f.line ?? 1, startColumn: 1 },
                 },
