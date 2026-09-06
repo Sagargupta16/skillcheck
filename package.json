@@ -40,6 +40,7 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "typecheck": "tsc --noEmit",
+    "docs:rules": "node scripts/gen-rules-doc.ts",
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {

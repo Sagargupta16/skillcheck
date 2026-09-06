@@ -7,6 +7,36 @@ on:
 
 jobs:
   test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Node 22 is the floor declared in package.json engines and tsup's
+        # target. Windows is load-bearing here: SKILL.md discovery reads real
+        # directory entries because case-insensitive filesystems make
+        # readFile("SKILL.md") succeed on skill.md, and SARIF/annotation paths
+        # are hand-normalized from backslashes.
+        os: [ubuntu-latest, windows-latest]
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - name: Smoke test CLI
+        shell: bash
+        run: |
+          node dist/cli.js lint fixtures/valid-skill
+          node dist/cli.js lint fixtures/broken-skill && exit 1 || test $? -eq 1
+
+  docs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -16,11 +46,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm test
-      - run: pnpm build
-      - name: Smoke test CLI
+      - name: Rule reference is in sync with the registry
         run: |
-          node dist/cli.js lint fixtures/valid-skill
-          node dist/cli.js lint fixtures/broken-skill && exit 1 || test $? -eq 1
+          pnpm docs:rules
+          git diff --exit-code docs/rules.md
