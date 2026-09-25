@@ -1,4 +1,4 @@
-name: "SkillCheck"
+name: "SkillCheck for Agent Skills"
 author: "Sagar Gupta"
 description: "Lint Agent Skills (SKILL.md) for spec conformance with PR annotations and SARIF output"
 branding:
