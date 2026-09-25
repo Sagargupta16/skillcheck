@@ -3,9 +3,15 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows [SemVer](https://semver.org/).
 
-As of 2026-09-06, 0.2.3 and 0.2.4 are merged on `main` but not yet tagged, released or published; the newest tag, GitHub release and npm version are all 0.2.2.
-
 ## [Unreleased]
+
+## [0.2.5] - 2026-09-25
+
+First tagged, released and npm-published version after 0.2.2: it also ships the 0.2.3 and 0.2.4 changes below, which were merged but never released on their own.
+
+### Changed
+
+- The action's Marketplace display name is now "SkillCheck for Agent Skills": plain "SkillCheck" matches an existing GitHub user, which the Marketplace forbids. The repository, the npm package and `uses: Sagargupta16/skillcheck@<tag>` are unchanged.
 
 ### Fixed
 
