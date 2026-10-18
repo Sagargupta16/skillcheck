@@ -1,6 +1,6 @@
 {
   "name": "@sagargupta1610/skillcheck",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Conformance suite for Agent Skills: lint SKILL.md against the spec, run it against real agent runtimes, publish a compatibility matrix",
   "keywords": [
     "agent-skills",
@@ -9,7 +9,12 @@
     "claude-code",
     "conformance",
     "lint",
-    "agents"
+    "agents",
+    "skill-linter",
+    "static-analysis",
+    "github-action",
+    "sarif",
+    "pre-commit"
   ],
   "license": "MIT",
   "author": "Sagar Gupta <sg85207@gmail.com> (https://github.com/Sagargupta16)",
@@ -39,8 +44,11 @@
     "test:watch": "vitest",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p site",
     "docs:rules": "node scripts/gen-rules-doc.ts",
+    "site:build": "tsup --config tsup.site.config.ts",
+    "site:serve": "node scripts/serve-site.ts",
+    "corpus": "pnpm build && node scripts/corpus-scan.ts",
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {

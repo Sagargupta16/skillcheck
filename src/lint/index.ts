@@ -5,9 +5,8 @@ import {
   extractBodyReferences,
   extractBodyReferencesWithLines,
 } from "./links.js";
-import { parseSkillMd } from "./parse.js";
 import { getRule } from "./registry.js";
-import { runRules } from "./rules.js";
+import { lintSkillSource } from "./source.js";
 
 /** Lint a single skill directory containing a SKILL.md (or skill.md). */
 export async function lintSkillDir(
@@ -76,28 +75,23 @@ export async function lintSkillDir(
     });
   }
 
-  const parsed = parseSkillMd(text.replace(/^﻿/, ""));
   const bundledFiles = await listBundledFiles(skillDir);
-
-  findings.push(
-    ...runRules({
-      parsed,
-      dirName,
-      profile: options.profile ?? "strict",
-      bundledFiles,
-    }),
-  );
+  const {
+    parsed,
+    skillName,
+    findings: ruleFindings,
+  } = lintSkillSource(text, {
+    dirName,
+    profile: options.profile ?? "strict",
+    bundledFiles,
+  });
+  findings.push(...ruleFindings);
 
   // SC103: a referenced bundled .md that itself references further bundled
   // files ("Keep file references one level deep from SKILL.md").
   findings.push(
     ...(await deepReferenceChains(skillDir, parsed.body, bundledFiles)),
   );
-
-  const skillName =
-    parsed.frontmatter && typeof parsed.frontmatter.name === "string"
-      ? parsed.frontmatter.name.trim().normalize("NFKC")
-      : null;
 
   return summarize(skillDir, skillName, applyOverrides(findings, options));
 }
