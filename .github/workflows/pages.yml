@@ -1,0 +1,73 @@
+name: Playground
+
+# Builds the browser playground (site/) and deploys it to GitHub Pages.
+# Needs Settings > Pages > Source set to "GitHub Actions" once. Until then the
+# build still runs, and the deploy steps skip with a notice instead of failing.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "src/**"
+      - "tsup.site.config.ts"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: read
+    outputs:
+      pages-enabled: ${{ steps.pages.outputs.enabled }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm site:build
+      - id: pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          if gh api "repos/$REPO/pages" --jq .build_type > /dev/null 2>&1; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::GitHub Pages is not enabled. Set Settings > Pages > Source to GitHub Actions, then re-run this workflow."
+          fi
+      - if: steps.pages.outputs.enabled == 'true'
+        uses: actions/configure-pages@v6
+      - if: steps.pages.outputs.enabled == 'true'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist-site
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.pages-enabled == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

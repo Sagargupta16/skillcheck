@@ -4,7 +4,7 @@ import {
   validateExtensionValue,
 } from "../extensions.js";
 import type { Finding, ParsedSkill, Profile, Severity } from "../types.js";
-import { extractBodyReferences } from "./links.js";
+import { extractBodyReferencesWithLines } from "./links.js";
 import { getRule } from "./registry.js";
 
 const NAME_MAX = 64;
@@ -57,6 +57,31 @@ function pythonListRepr(items: string[]): string {
   return `[${items.map((i) => `'${i}'`).join(", ")}]`;
 }
 
+/** Source line of a top-level frontmatter key, or undefined when the key is
+ * not written as `key:` at column 0. The raw frontmatter begins right after the
+ * opening `---`, so its first (usually empty) line is line 1 of the file. */
+function keyLine(parsed: ParsedSkill, key: string): number | undefined {
+  const i = parsed.rawFrontmatter
+    .split(/\r?\n/)
+    .findIndex((l) => l.startsWith(`${key}:`));
+  return i === -1 ? undefined : i + 1;
+}
+
+/** Smallest defined line, or undefined. */
+function firstLine(lines: (number | undefined)[]): number | undefined {
+  const defined = lines.filter((l): l is number => l !== undefined);
+  return defined.length > 0 ? Math.min(...defined) : undefined;
+}
+
+/** Source line of the first body line matching `test`, or undefined. */
+function bodyLine(
+  parsed: ParsedSkill,
+  test: (line: string) => boolean,
+): number | undefined {
+  const i = parsed.body.split(/\r?\n/).findIndex(test);
+  return i === -1 ? undefined : parsed.bodyStartLine + i;
+}
+
 /** Apply profile downgrades (client-guide lenient tier). */
 function applyProfile(findings: Finding[], profile: Profile): Finding[] {
   if (profile !== "lenient") return findings;
@@ -103,10 +128,12 @@ export function runRules(ctx: RuleContext): Finding[] {
         make(
           "SC301",
           `\`${key}\` is a client extension (${ext?.runtimes.join(", ")}), not in the Agent Skills spec -- fails strict skills-ref validation${ext?.deprecated ? `; ${ext.deprecated}` : ""}`,
+          keyLine(parsed, key),
         ),
       );
       const valueErr = validateExtensionValue(key, fm[key]);
-      if (valueErr) findings.push(make("SC302", valueErr));
+      if (valueErr)
+        findings.push(make("SC302", valueErr, keyLine(parsed, key)));
     } else {
       extras.push(key);
     }
@@ -116,6 +143,7 @@ export function runRules(ctx: RuleContext): Finding[] {
       make(
         "SC018",
         `Unexpected fields in frontmatter: ${extras.sort().join(", ")}. Only ${pythonListRepr([...SPEC_FIELDS].sort())} are allowed.`,
+        firstLine(extras.map((k) => keyLine(parsed, k))),
       ),
     );
   }
@@ -124,14 +152,22 @@ export function runRules(ctx: RuleContext): Finding[] {
   if (!("name" in fm)) {
     findings.push(make("SC006", "Missing required field in frontmatter: name"));
   } else if (typeof fm.name !== "string" || fm.name.trim().length === 0) {
-    findings.push(make("SC008", "Field 'name' must be a non-empty string"));
+    findings.push(
+      make(
+        "SC008",
+        "Field 'name' must be a non-empty string",
+        keyLine(parsed, "name"),
+      ),
+    );
   } else {
     const name = fm.name.trim().normalize("NFKC");
+    const at = keyLine(parsed, "name");
     if (name.length > NAME_MAX) {
       findings.push(
         make(
           "SC009",
           `Skill name '${name}' exceeds ${NAME_MAX} character limit (${name.length} chars)`,
+          at,
         ),
       );
     }
@@ -140,19 +176,19 @@ export function runRules(ctx: RuleContext): Finding[] {
         make(
           "SC010",
           `Skill name '${name}' must be lowercase`,
-          undefined,
+          at,
           `rename to '${name.toLowerCase()}'`,
         ),
       );
     }
     if (name.startsWith("-") || name.endsWith("-")) {
       findings.push(
-        make("SC011", "Skill name cannot start or end with a hyphen"),
+        make("SC011", "Skill name cannot start or end with a hyphen", at),
       );
     }
     if (name.includes("--")) {
       findings.push(
-        make("SC012", "Skill name cannot contain consecutive hyphens"),
+        make("SC012", "Skill name cannot contain consecutive hyphens", at),
       );
     }
     if (!NAME_CHARS_RE.test(name)) {
@@ -160,6 +196,7 @@ export function runRules(ctx: RuleContext): Finding[] {
         make(
           "SC013",
           `Skill name '${name}' contains invalid characters. Only letters, digits, and hyphens are allowed.`,
+          at,
         ),
       );
     }
@@ -170,6 +207,7 @@ export function runRules(ctx: RuleContext): Finding[] {
         make(
           "SC014",
           `Directory name '${dirName}' must match skill name '${name}'`,
+          at,
         ),
       );
     }
@@ -185,13 +223,18 @@ export function runRules(ctx: RuleContext): Finding[] {
     fm.description.trim().length === 0
   ) {
     findings.push(
-      make("SC015", "Field 'description' must be a non-empty string"),
+      make(
+        "SC015",
+        "Field 'description' must be a non-empty string",
+        keyLine(parsed, "description"),
+      ),
     );
   } else if (fm.description.length > DESCRIPTION_MAX) {
     findings.push(
       make(
         "SC016",
         `Description exceeds ${DESCRIPTION_MAX} character limit (${fm.description.length} chars)`,
+        keyLine(parsed, "description"),
       ),
     );
   }
@@ -199,12 +242,19 @@ export function runRules(ctx: RuleContext): Finding[] {
   // --- compatibility ---
   if (fm.compatibility !== undefined) {
     if (typeof fm.compatibility !== "string") {
-      findings.push(make("SC017", "Field 'compatibility' must be a string"));
+      findings.push(
+        make(
+          "SC017",
+          "Field 'compatibility' must be a string",
+          keyLine(parsed, "compatibility"),
+        ),
+      );
     } else if (fm.compatibility.length > COMPATIBILITY_MAX) {
       findings.push(
         make(
           "SC017",
           `Compatibility exceeds ${COMPATIBILITY_MAX} character limit (${fm.compatibility.length} chars)`,
+          keyLine(parsed, "compatibility"),
         ),
       );
     }
@@ -228,6 +278,7 @@ export function runRules(ctx: RuleContext): Finding[] {
         make(
           "SC019",
           "`metadata` should be a map of string keys to string values",
+          keyLine(parsed, "metadata"),
         ),
       );
     }
@@ -246,11 +297,16 @@ export function runRules(ctx: RuleContext): Finding[] {
         make(
           "SC302",
           "`allowed-tools` is an array; the spec defines it as a space-separated string (arrays are a client extension)",
+          keyLine(parsed, "allowed-tools"),
         ),
       );
     } else {
       findings.push(
-        make("SC302", "`allowed-tools` must be a space-separated string"),
+        make(
+          "SC302",
+          "`allowed-tools` must be a space-separated string",
+          keyLine(parsed, "allowed-tools"),
+        ),
       );
     }
   }
@@ -271,6 +327,7 @@ export function runRules(ctx: RuleContext): Finding[] {
         make(
           "SC202",
           `body is ${bodyLines} lines; spec recommends under ${BODY_LINE_LIMIT}`,
+          parsed.bodyStartLine + BODY_LINE_LIMIT,
         ),
       );
     }
@@ -292,10 +349,16 @@ export function runRules(ctx: RuleContext): Finding[] {
     HIDDEN_UNICODE_RE.test(body) ||
     HIDDEN_UNICODE_RE.test(parsed.rawFrontmatter)
   ) {
+    const fmIndex = parsed.rawFrontmatter
+      .split(/\r?\n/)
+      .findIndex((l) => HIDDEN_UNICODE_RE.test(l));
     findings.push(
       make(
         "SC107",
         "SKILL.md contains zero-width or bidi control characters (Trojan-Source risk)",
+        fmIndex === -1
+          ? bodyLine(parsed, (l) => HIDDEN_UNICODE_RE.test(l))
+          : fmIndex + 1,
       ),
     );
   }
@@ -304,7 +367,7 @@ export function runRules(ctx: RuleContext): Finding[] {
       make(
         "SC108",
         "deprecated `{baseDir}` placeholder found",
-        undefined,
+        bodyLine(parsed, (l) => l.includes("{baseDir}")),
         "use relative paths from the skill root instead",
       ),
     );
@@ -317,19 +380,36 @@ export function runRules(ctx: RuleContext): Finding[] {
  * Fires even when the YAML parser recovered (or failed) -- the client-guide
  * break case is "description: Use this skill when: ..." */
 function scanUnquotedColons(parsed: ParsedSkill, findings: Finding[]): void {
-  for (const line of parsed.rawFrontmatter.split(/\r?\n/)) {
+  for (const [i, line] of parsed.rawFrontmatter.split(/\r?\n/).entries()) {
     const m = /^(name|description):\s+(?!['"|>])(.*: .*)$/.exec(line);
     if (m) {
       findings.push(
         make(
           "SC021",
           `unquoted ': ' inside \`${m[1]}\` value -- lenient YAML parsers in some clients truncate here`,
-          undefined,
+          i + 1,
           `quote the value: ${m[1]}: "${(m[2] ?? "").trim()}"`,
         ),
       );
     }
   }
+}
+
+/** Example paths, not references: globs (`scripts/*.sh`), angle-bracket or
+ * ellipsis placeholders (`references/<name>.md`, `assets/...`), and bare words
+ * with no slash or extension (`[Title](URL)`). Found by the corpus scan
+ * (docs/corpus.md), where they were a large share of the SC101 false positives. */
+function isPlaceholderPath(target: string): boolean {
+  if (/[*<>|]|\.\.\./.test(target)) return true;
+  return !target.includes("/") && !target.includes(".");
+}
+
+/** Dotfiles are never in the bundled-file list (listBundledFiles skips them),
+ * so a reference to one cannot be checked. */
+function hasHiddenSegment(path: string): boolean {
+  return path
+    .split("/")
+    .some((seg) => seg.startsWith(".") && seg !== "." && seg !== "..");
 }
 
 /** Extract relative file references from the body and check them against the
@@ -341,11 +421,22 @@ function referenceChecks(
   const findings: Finding[] = [];
   const body = parsed.body;
   const bundled = new Set(bundledFiles.map((f) => f.replace(/\\/g, "/")));
+  // Directories holding at least one bundled file: `references/workers/` names
+  // a directory, not a missing file.
+  const bundledDirs = new Set<string>();
+  for (const f of bundled) {
+    const parts = f.split("/");
+    for (let i = 1; i < parts.length; i++) {
+      bundledDirs.add(parts.slice(0, i).join("/"));
+    }
+  }
 
   // markdown link destinations + conventional-dir inline code (see links.ts)
-  const referenced = new Set(extractBodyReferences(body));
+  const refs = extractBodyReferencesWithLines(body);
+  const referenced = new Set(refs.map((r) => r.target));
 
-  for (const target of referenced) {
+  for (const { target, line } of refs) {
+    const at = parsed.bodyStartLine + line - 1;
     if (/^[a-z][a-z0-9+.-]*:\/\//i.test(target) || target.startsWith("mailto:"))
       continue; // URL
     if (target.startsWith("#")) continue; // anchor
@@ -355,16 +446,28 @@ function referenceChecks(
         make(
           "SC102",
           `absolute path reference \`${target}\` -- skills must use paths relative to the skill root`,
+          at,
         ),
       );
       continue;
     }
-    const normalized = target.replace(/^\.\//, "").replace(/\\/g, "/");
-    if (bundled.size > 0 && !bundled.has(normalized)) {
+    if (isPlaceholderPath(target)) continue;
+    const normalized = target
+      .replace(/^\{baseDir\}\//, "") // legacy placeholder, SC108 reports it
+      .replace(/^\.\//, "")
+      .replace(/\\/g, "/")
+      .replace(/\/+$/, "");
+    if (
+      bundled.size > 0 &&
+      !bundled.has(normalized) &&
+      !bundledDirs.has(normalized) &&
+      !hasHiddenSegment(normalized)
+    ) {
       findings.push(
         make(
           "SC101",
           `referenced file \`${target}\` does not exist in the skill directory`,
+          at,
         ),
       );
     }

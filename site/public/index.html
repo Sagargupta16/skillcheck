@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>skillcheck playground: lint a SKILL.md in your browser</title>
+    <meta
+      name="description"
+      content="Paste a SKILL.md and lint it against the Agent Skills spec with skillcheck's real rules: skills-ref parity errors, client-extension warnings, line-accurate findings. Runs entirely in your browser."
+    />
+    <meta name="theme-color" content="#09090b" />
+    <meta property="og:title" content="skillcheck playground" />
+    <meta
+      property="og:description"
+      content="Lint a SKILL.md against the Agent Skills spec, in your browser."
+    />
+    <meta property="og:type" content="website" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%233b82f6'/%3E%3Cpath d='M9 16.5l4.5 4.5L23 11.5' stroke='white' stroke-width='3.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div class="brand">
+        <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
+          <rect width="32" height="32" rx="7" />
+          <path d="M9 16.5l4.5 4.5L23 11.5" />
+        </svg>
+        <div>
+          <h1>skillcheck <span>playground</span></h1>
+          <p class="tagline">
+            Lint a <code>SKILL.md</code> against the
+            <a href="https://agentskills.io" target="_blank" rel="noopener">Agent Skills</a>
+            spec. Same rules as the CLI, running in your browser.
+          </p>
+        </div>
+      </div>
+      <nav class="links" aria-label="Project links">
+        <a href="https://github.com/Sagargupta16/skillcheck" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://www.npmjs.com/package/@sagargupta1610/skillcheck" target="_blank" rel="noopener">npm</a>
+        <a href="https://github.com/Sagargupta16/skillcheck/blob/main/docs/rules.md" target="_blank" rel="noopener">Rules</a>
+        <a href="https://github.com/Sagargupta16/skillcheck/blob/main/docs/corpus.md" target="_blank" rel="noopener">Corpus scan</a>
+      </nav>
+    </header>
+
+    <main class="grid">
+      <section class="card editor-card" aria-labelledby="editor-title">
+        <div class="toolbar">
+          <h2 id="editor-title">SKILL.md</h2>
+          <label class="select">
+            <span class="sr-only">Load an example</span>
+            <select id="example">
+              <option value="" disabled selected>Examples</option>
+            </select>
+          </label>
+          <fieldset class="segmented">
+            <legend class="sr-only">Lint profile</legend>
+            <button type="button" data-profile="strict" aria-pressed="true">strict</button>
+            <button type="button" data-profile="lenient" aria-pressed="false">lenient</button>
+          </fieldset>
+          <button type="button" id="share" class="button">Share link</button>
+        </div>
+        <div class="editor">
+          <div id="gutter" class="gutter" aria-hidden="true"></div>
+          <textarea
+            id="editor"
+            spellcheck="false"
+            autocapitalize="off"
+            autocomplete="off"
+            wrap="off"
+            aria-label="SKILL.md source"
+          ></textarea>
+        </div>
+        <details class="options">
+          <summary>Directory name and bundled files</summary>
+          <div class="option-grid">
+            <label>
+              <span>Directory name <small>(SC014 compares it with <code>name</code>)</small></span>
+              <input id="dir-name" type="text" spellcheck="false" autocapitalize="off" />
+            </label>
+            <label>
+              <span>Bundled files, one path per line <small>(turns on SC101 and SC104)</small></span>
+              <textarea id="bundled-files" rows="4" spellcheck="false" autocapitalize="off"></textarea>
+            </label>
+          </div>
+        </details>
+      </section>
+
+      <section class="card results-card" aria-labelledby="results-title">
+        <div class="toolbar">
+          <h2 id="results-title">Findings</h2>
+          <div id="summary" class="summary" aria-live="polite"></div>
+        </div>
+        <p id="verdict" class="verdict"></p>
+        <ol id="findings" class="findings"></ol>
+      </section>
+
+      <section class="card ci-card" aria-labelledby="ci-title">
+        <h2 id="ci-title">Run it on every commit</h2>
+        <div class="snippet">
+          <div class="snippet-head"><span>CLI</span><button type="button" class="button small" data-copy="cli-snippet">Copy</button></div>
+          <pre id="cli-snippet">npx -y @sagargupta1610/skillcheck lint ./skills</pre>
+        </div>
+        <div class="snippet">
+          <div class="snippet-head"><span>GitHub Action</span><button type="button" class="button small" data-copy="action-snippet">Copy</button></div>
+          <pre id="action-snippet">- uses: Sagargupta16/skillcheck@v0.2.7
+  with:
+    path: skills/
+    fail-on: error</pre>
+        </div>
+        <div class="snippet">
+          <div class="snippet-head"><span>pre-commit</span><button type="button" class="button small" data-copy="precommit-snippet">Copy</button></div>
+          <pre id="precommit-snippet">- repo: https://github.com/Sagargupta16/skillcheck
+  rev: v0.2.7
+  hooks:
+    - id: skillcheck</pre>
+        </div>
+        <p class="note">
+          The playground runs the per-file rules. The CLI adds the ones that need a real directory:
+          missing SKILL.md (SC001), lowercase <code>skill.md</code> (SC020), reference chains (SC103),
+          duplicate names across skills (SC105), encoding (SC106) and <code>evals.json</code> (SC4xx).
+        </p>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <span>skillcheck <span id="version"></span>, MIT licensed. Your text never leaves this page.</span>
+      <span>Built by <a href="https://github.com/Sagargupta16" target="_blank" rel="noopener">Sagar Gupta</a></span>
+    </footer>
+
+    <script src="playground.js"></script>
+  </body>
+</html>

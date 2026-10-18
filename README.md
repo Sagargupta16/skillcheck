@@ -22,6 +22,30 @@ commit_helper  ./skills/commit-helper
 1 skill(s) checked: 2 error(s), 2 warning(s), 0 info
 ```
 
+Findings point at the line that caused them (the `name:` key, the broken link), so PR annotations land on the right line of the diff.
+
+## Playground
+
+Paste a SKILL.md and see the findings as you type: [sagargupta16.github.io/skillcheck](https://sagargupta16.github.io/skillcheck/). It runs the same rule modules as the CLI, bundled for the browser, so nothing is uploaded. Share links carry the skill in the URL hash.
+
+<p>
+  <img src="docs/assets/playground-desktop.webp" alt="skillcheck playground on desktop: SKILL.md editor with line markers on the left, findings with severity, rule code and line number on the right" width="640" />
+  <img src="docs/assets/playground-phone.webp" alt="skillcheck playground on a phone: editor stacked above the findings" width="180" />
+</p>
+
+The playground covers the per-file rules. Checks that need a real directory (SC001, SC020, SC103, SC105, SC106, SC4xx) run in the CLI only.
+
+## What it finds in public skills
+
+[docs/corpus.md](docs/corpus.md) is skillcheck run over 2,081 skills in 18 public repositories (Anthropic, OpenAI, Vercel, Hugging Face, Cloudflare, Microsoft, GitHub, Stripe, Trail of Bits and others), each pinned to a commit. `pnpm corpus` regenerates it.
+
+- 877 skills (42.1%) have at least one error under the default strict profile. 833 of those are in one repository, ComposioHQ/awesome-claude-skills, almost all for a non-spec `requires:` field. Without it: 44 of 1,217 skills (3.6%).
+- 7 of the 18 repositories ship at least one skill with an error.
+- The most common error is SC018 unknown-frontmatter-field (849 skills), then SC013 name-invalid-chars (90) and SC014 name-dir-mismatch (85).
+- A full strict pass over all 2,081 skills took a median 4.8 s (2.29 ms per skill) on the machine named in the report.
+
+The scan also tested skillcheck itself. It found that discovery skipped dot directories (`.claude/skills`, `.github/skills`), which hid 261 skills, and that SC101 fired on directory links, `{baseDir}` paths, globs and placeholder text. Both are fixed in 0.2.7.
+
 ## Why
 
 The Agent Skills standard is adopted by 40+ runtimes (Claude Code, Codex, Gemini CLI, Copilot, Cursor, OpenCode, ...) and its ecosystem has a built-in tension: the official reference validator (`skills-ref`) is **strict** -- unknown frontmatter fields fail -- while real clients are **lenient** -- they warn and load anyway. Claude Code alone ships 18 extension fields that fail strict validation.
@@ -53,6 +77,7 @@ skillcheck lint . --format concise         # one line per finding
 skillcheck lint . --format json            # machine-readable
 skillcheck lint . --format sarif           # SARIF 2.1.0 to stdout
 skillcheck lint . --sarif report.sarif     # sidecar SARIF alongside any format
+skillcheck lint . --badge badge.json       # shields.io endpoint badge (see Badge)
 skillcheck lint . --fail-on warning        # stricter CI gate
 skillcheck lint . --max-warnings 10
 skillcheck lint . --ignore-pattern 'fixtures/**' 'vendor/**'
@@ -73,11 +98,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: Sagargupta16/skillcheck@v0.2.5
+      - uses: Sagargupta16/skillcheck@v0.2.7
         with:
           path: skills/
           fail-on: error
           sarif-file: skillcheck.sarif   # optional
+          badge-file: .github/skillcheck-badge.json   # optional, action v0.2.7+
 
       # optional: upload to code scanning (needs security-events: write)
       - uses: github/codeql-action/upload-sarif@v4
@@ -89,6 +115,28 @@ jobs:
 Inline PR annotations come free via workflow commands; a full report table lands in the job summary automatically. Action outputs: `error-count`, `warning-count`, `sarif-file`.
 
 The action is listed on the [GitHub Marketplace](https://github.com/marketplace/actions/skillcheck-for-agent-skills). The tag pins `action.yml`; the CLI it runs comes from npm, set by the `version` input (default `latest`). Pin `version` too for fully reproducible CI.
+
+## Badge
+
+`--badge <path>` (or the action's `badge-file` input) writes a [shields.io endpoint](https://shields.io/badges/endpoint-badge) JSON: red with the error count, yellow with the warning count, green `N skills passing` otherwise. Commit it from CI and point shields at the raw file:
+
+```markdown
+![skillcheck](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/<owner>/<repo>/main/.github/skillcheck-badge.json)
+```
+
+The counts are taken after config overrides, so the badge agrees with the exit code.
+
+## pre-commit
+
+```yaml
+repos:
+  - repo: https://github.com/Sagargupta16/skillcheck
+    rev: v0.2.7
+    hooks:
+      - id: skillcheck
+```
+
+The hook runs on staged `SKILL.md` files. It uses `language: system` and runs the npm release through `npx`, like the action does, so it needs Node 22+ on PATH. To pin the CLI version, override the entry: `entry: npx --yes @sagargupta1610/skillcheck@0.2.7 lint`.
 
 ## Rules
 
@@ -156,7 +204,9 @@ flowchart LR
 | Frontmatter splitter | [src/lint/parse.ts](src/lint/parse.ts) | Replicates skills-ref's `split("---", 2)` and strictyaml rules on top of the `yaml` parser, so an error here means the reference validator would fail too |
 | Rule registry | [src/lint/registry.ts](src/lint/registry.ts) | One table drives the CLI, SARIF rule metadata and [docs/rules.md](docs/rules.md); CI regenerates the doc and fails on drift |
 | Extension registry | [src/extensions.ts](src/extensions.ts) | Per-runtime frontmatter fields with value validators, so `model` warns as Claude Code only instead of a hard SC018 |
-| Reference checks | [src/lint/links.ts](src/lint/links.ts) | CommonMark-aware link parsing (titles, angle brackets, fenced code skipped) shared by SC101 to SC103 |
+| Reference checks | [src/lint/links.ts](src/lint/links.ts) | CommonMark-aware link parsing (titles, angle brackets, fenced code skipped) shared by SC101 to SC103, with the source line of every reference |
+| Pure lint core | [src/lint/source.ts](src/lint/source.ts) | Lints SKILL.md text with no filesystem, so the CLI and the [playground](site/) run the same code; a test checks both give identical findings |
+| Corpus scan | [scripts/corpus-scan.ts](scripts/corpus-scan.ts) | Clones pinned commits of public skill repos and lints them with the built package, so every number in [docs/corpus.md](docs/corpus.md) is reproducible |
 | Output | [src/output/](src/output/) | Repo-relative paths so annotations attach to the PR diff; workflow-command escaping so a hostile SKILL.md cannot inject `::error::` lines |
 
 Picking `SKILL.md` over `skill.md` reads real directory entries rather than `readFile("SKILL.md")`, because case-insensitive filesystems on Windows and macOS would otherwise accept `skill.md` silently. CI runs ubuntu and windows on Node 22 and 24 for that reason.
@@ -165,8 +215,9 @@ Picking `SKILL.md` over `skill.md` reads real directory entries rather than `rea
 
 - [x] **v0.1** -- static lint, two-tier severity
 - [x] **v0.2** -- skills-ref parity (verified message for message), rule codes, i18n names, structure/reference rules, extension registry with value validation, SARIF 2.1.0, evals scaffold + validation, GitHub Action, profiles, config
+- [x] **v0.2.7** -- line-accurate findings, browser playground, corpus scan of 2,081 public skills, shields.io badge, pre-commit hook
 - [ ] **v0.3** -- runtime execution: run trigger tests against Claude Code / OpenCode / Codex headlessly in Docker; `--fix` for safe fixes
-- [ ] **v1.0** -- public caniuse-style compatibility matrix + README badges
+- [ ] **v1.0** -- public caniuse-style compatibility matrix
 
 ## Development
 
@@ -176,6 +227,9 @@ pnpm test        # vitest: skills-ref parity, i18n names, reference parsing, wor
 pnpm build       # tsup -> dist/*.js, tsc --emitDeclarationOnly -> dist/*.d.ts
 pnpm lint        # biome
 pnpm docs:rules  # regenerate docs/rules.md from src/lint/registry.ts
+pnpm site:build  # playground -> dist-site/
+pnpm site:serve  # serve dist-site/ on http://localhost:4173
+pnpm corpus      # rebuild, scan the pinned public repos, rewrite docs/corpus.md
 node dist/cli.js lint fixtures/valid-skill
 ```
 

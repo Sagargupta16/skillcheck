@@ -10,6 +10,7 @@ import {
   lintSkillDir,
 } from "./lint/index.js";
 import { getRule } from "./lint/registry.js";
+import { toBadge } from "./output/badge.js";
 import { toWorkflowCommands } from "./output/github.js";
 import { toSarif } from "./output/sarif.js";
 import type { LintResult, Profile } from "./types.js";
@@ -40,6 +41,7 @@ interface LintFlags {
   format: string;
   failOn: string;
   sarif?: string;
+  badge?: string;
   maxWarnings?: string;
   ignorePattern?: string[];
 }
@@ -86,6 +88,10 @@ program
     "error",
   )
   .option("--sarif <path>", "also write a SARIF 2.1.0 report to this path")
+  .option(
+    "--badge <path>",
+    "also write a shields.io endpoint badge (JSON) to this path",
+  )
   .option("--max-warnings <n>", "fail when warnings exceed this count")
   .option(
     "--ignore-pattern <glob...>",
@@ -140,6 +146,13 @@ program
 
     if (opts.sarif) {
       await writeFile(opts.sarif, toSarif(results, VERSION), "utf8");
+    }
+    if (opts.badge) {
+      await writeFile(
+        opts.badge,
+        `${JSON.stringify(toBadge(results), null, 2)}\n`,
+        "utf8",
+      );
     }
     report(results, opts.format);
     await emitGithubOutputs(results);
@@ -297,6 +310,10 @@ async function expandSkillDirs(
       cwd: p,
       ignore: ["**/node_modules/**", "**/.git/**", ...extraIgnore],
       absolute: true,
+      // Skills live in dot directories by convention (.claude/skills,
+      // .github/skills, .agents/skills, openai/skills' .curated); glob skips
+      // those by default, so `lint .` used to find none of them.
+      dot: true,
     });
     for (const m of matches) {
       dirs.add(join(m, ".."));

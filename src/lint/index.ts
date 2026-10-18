@@ -1,10 +1,12 @@
 import { readdir, readFile } from "node:fs/promises";
 import { basename, join, relative, resolve } from "node:path";
 import type { Finding, LintOptions, LintResult, Severity } from "../types.js";
-import { extractBodyReferences } from "./links.js";
-import { parseSkillMd } from "./parse.js";
+import {
+  extractBodyReferences,
+  extractBodyReferencesWithLines,
+} from "./links.js";
 import { getRule } from "./registry.js";
-import { runRules } from "./rules.js";
+import { lintSkillSource } from "./source.js";
 
 /** Lint a single skill directory containing a SKILL.md (or skill.md). */
 export async function lintSkillDir(
@@ -73,28 +75,23 @@ export async function lintSkillDir(
     });
   }
 
-  const parsed = parseSkillMd(text.replace(/^﻿/, ""));
   const bundledFiles = await listBundledFiles(skillDir);
-
-  findings.push(
-    ...runRules({
-      parsed,
-      dirName,
-      profile: options.profile ?? "strict",
-      bundledFiles,
-    }),
-  );
+  const {
+    parsed,
+    skillName,
+    findings: ruleFindings,
+  } = lintSkillSource(text, {
+    dirName,
+    profile: options.profile ?? "strict",
+    bundledFiles,
+  });
+  findings.push(...ruleFindings);
 
   // SC103: a referenced bundled .md that itself references further bundled
   // files ("Keep file references one level deep from SKILL.md").
   findings.push(
     ...(await deepReferenceChains(skillDir, parsed.body, bundledFiles)),
   );
-
-  const skillName =
-    parsed.frontmatter && typeof parsed.frontmatter.name === "string"
-      ? parsed.frontmatter.name.trim().normalize("NFKC")
-      : null;
 
   return summarize(skillDir, skillName, applyOverrides(findings, options));
 }
@@ -195,10 +192,22 @@ async function deepReferenceChains(
         severity: "info",
         message: `\`${normalized}\` references further bundled files (${childRefs.slice(0, 3).join(", ")}${childRefs.length > 3 ? ", ..." : ""}) -- spec recommends keeping references one level deep from SKILL.md`,
         file: normalized,
+        ...lineOf(childBody, childRefs[0]),
       });
     }
   }
   return findings;
+}
+
+/** `{ line }` of the first reference to `target` in `markdown`, or nothing. */
+function lineOf(
+  markdown: string,
+  target: string | undefined,
+): { line?: number } {
+  const line = extractBodyReferencesWithLines(markdown).find(
+    (r) => r.target === target,
+  )?.line;
+  return line === undefined ? {} : { line };
 }
 
 async function listBundledFiles(skillDir: string): Promise<string[]> {

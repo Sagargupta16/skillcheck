@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": [],
+    "rootDir": "..",
+    "noEmit": true
+  },
+  "include": ["playground.ts"]
+}

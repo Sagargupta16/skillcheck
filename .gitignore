@@ -1,6 +1,7 @@
 # deps / build
 node_modules/
 dist/
+dist-site/
 
 # env / secrets
 .env

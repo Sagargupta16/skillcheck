@@ -2,7 +2,6 @@
  * the SC103 chain walk in index.ts. Both used to carry their own copy of these
  * regexes and drifted into the same false positives. */
 
-const MARKDOWN_LINK_RE = /\[[^\]]*\]\(([^)]+)\)/g;
 const CONVENTIONAL_DIR_CODE_RE = /`((?:scripts|references|assets)\/[^\s`]+)`/g;
 
 /** Resolve a CommonMark inline-link destination to a bare path.
@@ -56,20 +55,65 @@ export function stripFencedCode(body: string): string {
     .join("\n");
 }
 
-/** Every relative-file reference in a markdown body: link destinations plus
- * inline-code tokens pointing into the conventional bundled directories.
- * Fenced code blocks are skipped. Unfiltered otherwise -- callers decide what
- * counts as a URL, anchor or placeholder. */
-export function extractBodyReferences(markdown: string): string[] {
+export interface BodyReference {
+  target: string;
+  /** 1-based line of the first occurrence, relative to the markdown passed in. */
+  line: number;
+}
+
+/** Inline links `[text](dest)` as {raw destination, offset of dest}. Same
+ * matches as /\[[^\]]*\]\(([^)]+)\)/g, scanned in linear time: the regex
+ * backtracks quadratically on input like "[[[[" or "[](([]((", and the
+ * playground feeds it whatever is pasted. */
+function* inlineLinks(text: string): Generator<{ raw: string; at: number }> {
+  let from = 0;
+  for (;;) {
+    const open = text.indexOf("[", from);
+    if (open === -1) return;
+    const close = text.indexOf("]", open + 1);
+    if (close === -1) return;
+    // Every "[" before `close` shares this "]", so they all fail or match here.
+    if (text[close + 1] === "(" && text[close + 2] !== ")") {
+      const end = text.indexOf(")", close + 2);
+      if (end === -1) return;
+      yield { raw: text.slice(close + 2, end), at: close + 2 };
+      from = end + 1;
+      continue;
+    }
+    from = close + 1;
+  }
+}
+
+/** 1-based line number of a character offset. */
+function lineAt(text: string, index: number): number {
+  let line = 1;
+  for (let i = 0; i < index; i++) if (text.charCodeAt(i) === 10) line++;
+  return line;
+}
+
+/** Every relative-file reference in a markdown body, with the line it first
+ * appears on: link destinations plus inline-code tokens pointing into the
+ * conventional bundled directories. Fenced code blocks are skipped (line count
+ * preserved, so the lines stay true). Unfiltered otherwise -- callers decide
+ * what counts as a URL, anchor or placeholder. */
+export function extractBodyReferencesWithLines(
+  markdown: string,
+): BodyReference[] {
   const body = stripFencedCode(markdown);
-  const refs = new Set<string>();
-  for (const m of body.matchAll(MARKDOWN_LINK_RE)) {
-    const target = parseLinkTarget(m[1] ?? "");
-    if (target) refs.add(target);
+  const refs = new Map<string, number>();
+  for (const { raw, at } of inlineLinks(body)) {
+    const target = parseLinkTarget(raw);
+    // Link text may wrap; anchor to the line holding the destination.
+    if (target && !refs.has(target)) refs.set(target, lineAt(body, at));
   }
   for (const m of body.matchAll(CONVENTIONAL_DIR_CODE_RE)) {
     const target = (m[1] ?? "").trim();
-    if (target) refs.add(target);
+    if (target && !refs.has(target)) refs.set(target, lineAt(body, m.index));
   }
-  return [...refs];
+  return [...refs].map(([target, line]) => ({ target, line }));
+}
+
+/** {@link extractBodyReferencesWithLines} without the line numbers. */
+export function extractBodyReferences(markdown: string): string[] {
+  return extractBodyReferencesWithLines(markdown).map((r) => r.target);
 }

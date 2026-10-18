@@ -33,6 +33,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - run: pnpm site:build
       - name: Smoke test CLI
         shell: bash
         run: |
