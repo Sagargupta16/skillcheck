@@ -1,0 +1,15 @@
+# pre-commit (https://pre-commit.com) hook definitions.
+#
+# `language: system` on purpose: the CLI is published to npm, and `language:
+# node` would make pre-commit install this repo from git, which needs a build
+# step (dist/ is not committed) that npm 11 no longer runs for git installs.
+# The hook runs the npm release through npx instead, the same way action.yml
+# does, so it needs Node 22+ on PATH. Pin a CLI version by overriding `entry`
+# in your .pre-commit-config.yaml (see README).
+- id: skillcheck
+  name: skillcheck
+  description: Lint Agent Skills (SKILL.md) against the agentskills.io spec
+  entry: npx --yes @sagargupta1610/skillcheck@latest lint
+  language: system
+  files: (^|/)(SKILL|skill)\.md$
+  minimum_pre_commit_version: "3.2.0"
