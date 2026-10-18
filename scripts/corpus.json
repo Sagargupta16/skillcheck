@@ -1,0 +1,82 @@
+{
+  "description": "Public Agent Skills repositories scanned by scripts/corpus-scan.ts. Pinned to a commit so the report is reproducible; refresh the pins with `pnpm corpus --update`.",
+  "ignore": [
+    "**/node_modules/**",
+    "**/.git/**",
+    "**/test/**",
+    "**/tests/**",
+    "**/fixtures/**",
+    "**/__fixtures__/**"
+  ],
+  "repos": [
+    {
+      "repo": "anthropics/skills",
+      "sha": "dbd4588f9e1033efb41dad4bef2f7947c8993d44"
+    },
+    {
+      "repo": "openai/skills",
+      "sha": "49f948faa9258a0c61caceaf225e179651397431"
+    },
+    {
+      "repo": "vercel-labs/agent-skills",
+      "sha": "063bee94c3f4df8453406c830b0a7df0f2860278"
+    },
+    {
+      "repo": "huggingface/skills",
+      "sha": "c3ff942be3e07116b475253f0a8fc4f54682c1a8"
+    },
+    {
+      "repo": "cloudflare/skills",
+      "sha": "86505e44f87d801aa1864a3c4109e9a8ae5c409f"
+    },
+    {
+      "repo": "microsoft/skills",
+      "sha": "8850874f66fb4d905bfcfcb923a18883bb70d1cd"
+    },
+    {
+      "repo": "obra/superpowers",
+      "sha": "bb92a77741419a4ab5f06e711a283343f1ada0c3"
+    },
+    {
+      "repo": "K-Dense-AI/scientific-agent-skills",
+      "sha": "a1043ef544e3a100c28e70a736b6cf32554d0677"
+    },
+    {
+      "repo": "ComposioHQ/awesome-claude-skills",
+      "sha": "be2a406907dbc61b73e6827ded415c96139d13a2"
+    },
+    {
+      "repo": "trailofbits/skills",
+      "sha": "5c99c03fb8a9ea568432ecbcba5d86e9f4ac2bf0"
+    },
+    {
+      "repo": "github/awesome-copilot",
+      "sha": "cb64ad12e32737ae764becd6885462e9b4c7cb00"
+    },
+    {
+      "repo": "supabase/agent-skills",
+      "sha": "c9be0e931b7930f7d02126d04774d904c381e7d7"
+    },
+    {
+      "repo": "getsentry/skills",
+      "sha": "f57ada2d0b640406ea7e25b11d636c530e77c58b"
+    },
+    {
+      "repo": "expo/skills",
+      "sha": "7ddc1f5796996e5c7efe2fc3fa9168eb24e8dac1"
+    },
+    { "repo": "stripe/ai", "sha": "24947f1632ee3440ba9f27f92404beea164517b9" },
+    {
+      "repo": "hashicorp/agent-skills",
+      "sha": "f706481af9b8fedb66de909f6243ad29601afa0c"
+    },
+    {
+      "repo": "google-gemini/gemini-skills",
+      "sha": "ee9da52195752ca83c2fca701d96bcb5a9c08d2d"
+    },
+    {
+      "repo": "neondatabase/agent-skills",
+      "sha": "51c7d594c0568d52a15eede61cc43f9f1227607a"
+    }
+  ]
+}
