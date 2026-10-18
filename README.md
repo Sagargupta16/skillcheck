@@ -98,12 +98,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: Sagargupta16/skillcheck@v0.2.5
+      - uses: Sagargupta16/skillcheck@v0.2.7
         with:
           path: skills/
           fail-on: error
           sarif-file: skillcheck.sarif   # optional
-          badge-file: .github/skillcheck-badge.json   # optional, CLI 0.2.7+
+          badge-file: .github/skillcheck-badge.json   # optional, action v0.2.7+
 
       # optional: upload to code scanning (needs security-events: write)
       - uses: github/codeql-action/upload-sarif@v4
