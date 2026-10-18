@@ -26,6 +26,7 @@ pnpm test
 2. Implement the check in `src/lint/rules.ts` (or `src/lint/index.ts` for filesystem-level checks).
 3. Add tests in `tests/lint.test.ts`.
 4. Regenerate the rule reference with `pnpm docs:rules`. CI regenerates it too and fails on any diff, so a hand-edited `docs/rules.md` will not pass.
+5. For a rule that can fire on real-world skills, run `pnpm corpus` and look at what it reports in [docs/corpus.md](docs/corpus.md). The corpus is the cheapest false-positive check there is; commit the regenerated report with the rule.
 
 ## Reporting bugs
 

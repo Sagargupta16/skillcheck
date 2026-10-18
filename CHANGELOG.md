@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-10-18
+
+### Added
+
+- Line-accurate findings. Frontmatter rules point at their key (`name:`, `description:`, the extension field), body rules at the offending line (SC101, SC102, SC107, SC108, SC202), and SC103 at the line inside the referenced file. Every finding used to say line 1, so PR annotations and SARIF alerts landed on the opening `---`.
+- Browser playground in `site/`: paste a SKILL.md, get findings as you type, jump to the line, switch profiles, share a link. Built by `pnpm site:build` and deployed to GitHub Pages by `.github/workflows/pages.yml`.
+- `lintSkillSource()` (`src/lint/source.ts`), exported from the library: the per-file rules on a string, no filesystem. `lintSkillDir` and the playground both run it, and a test checks they return identical findings.
+- Corpus scan: `pnpm corpus` lints every SKILL.md in 18 public skill repositories, pinned in `scripts/corpus.json`, and writes [docs/corpus.md](docs/corpus.md) and `docs/corpus.json`. First run: 2,081 skills, 877 with an error under the strict profile, 7 of 18 repositories affected, median 4.8 s for a full pass.
+- `--badge <path>` writes a shields.io endpoint badge JSON, and the action gained a matching `badge-file` input.
+- `.pre-commit-hooks.yaml` with a `skillcheck` hook for staged SKILL.md files.
+- npm keywords: skill-linter, static-analysis, github-action, sarif, pre-commit.
+
+### Fixed
+
+- Directory discovery skipped dot directories, so `skillcheck lint .` found nothing in `.claude/skills`, `.github/skills` or openai/skills' `.curated`, and the action's default `path: .` missed them too. In the corpus that hid 261 skills, 212 of them in microsoft/skills.
+- SC101 false positives found by the corpus scan: links to a bundled directory (`references/workers/`), `{baseDir}/...` paths (SC108 still reports the placeholder, and a missing file behind it still fires), globs (`scripts/*.sh`), placeholders (`references/<name>.md`, `assets/...`, `[Title](URL)`) and dotfiles. Corpus SC101 findings went from 308 in 89 skills to 171 in 48.
+- `ParsedSkill.bodyStartLine` was one line too far down.
+
 ## [0.2.6] - 2026-10-18
 
 ### Fixed

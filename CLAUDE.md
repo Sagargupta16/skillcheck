@@ -18,7 +18,7 @@ Conformance suite for Agent Skills (SKILL.md): lints skills against the agentski
 - **Framework**: none -- CLI via commander, JS bundled by tsup, `.d.ts` emitted by `tsc`
 - **Database**: none
 - **Package manager**: pnpm
-- **Deploy target**: npm registry (CLI); matrix site later (Vercel)
+- **Deploy target**: npm registry (CLI); GitHub Pages (playground)
 
 ## Run
 
@@ -47,6 +47,9 @@ pnpm typecheck
 - `src/lint/rules.ts` -- the "brain": all lint rule implementations and limits
 - `src/extensions.ts` -- SPEC_FIELDS + KNOWN_EXTENSIONS typed registry (spec fields, client extension fields)
 - `src/lint/parse.ts` -- SKILL.md frontmatter/body splitter (never throws)
+- `src/lint/source.ts` -- `lintSkillSource`: per-file rules on a string, no fs; shared by `lintSkillDir` and the playground
+- `site/` -- browser playground (`pnpm site:build` -> `dist-site/`, `pnpm site:serve`), deployed by `.github/workflows/pages.yml`
+- `scripts/corpus-scan.ts` + `scripts/corpus.json` -- `pnpm corpus` scans pinned public skill repos into `docs/corpus.md`
 - `fixtures/` -- valid-skill and broken-skill lint fixtures used by tests and CI smoke test
 
 ## Gotchas
@@ -56,6 +59,10 @@ pnpm typecheck
 - `KNOWN_EXTENSIONS` in `src/extensions.ts` tracks client extension fields (Claude Code, Cursor, Copilot, OpenCode); update it when runtimes ship new frontmatter keys.
 - Name collision landscape: getskillcheck.com is an unrelated paid static-analysis product; npm unscoped `skillcheck`/`skill-check` are taken. This package is scoped `@sagargupta1610/skillcheck` on purpose.
 - **Never set `dts: true` in `tsup.config.ts`.** tsup bundles `rollup-plugin-dts@6.1.1` into its own `dist/rollup.js` rather than installing it, and that vendored copy calls a TS compiler internal the native TypeScript 7 port removed -- the build dies on `Cannot read properties of undefined (reading 'useCaseSensitiveFileNames')`. No dependency bump reaches a bundled module. Declarations come from `tsc --emitDeclarationOnly` in the `build` script instead, which tracks whatever TS version is installed. tsup 9.0.0 (2026-10) re-vendors rollup-plugin-dts 6.5.1, the version that declares `typescript: ^4.5 || ^5 || ^6 || ^7`, so `dts: true` may work again; switching back is optional and untested.
+
+- Rule modules reached from `src/lint/source.ts` (rules, parse, links, registry, extensions) must stay free of Node imports: the playground bundles them for the browser, and `tsc -p site` (no Node types) fails if one sneaks in.
+- The corpus clone cache lives in `node_modules/.cache/skillcheck-corpus` on purpose: vitest, Biome and git all skip it. A cache inside the repo root made vitest run the cloned repos' own test files.
+- Numbers in README about the corpus come from `docs/corpus.md`; rerun `pnpm corpus` and update both together.
 
 ## Repo-specific rules
 
