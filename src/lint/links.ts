@@ -27,10 +27,41 @@ export function parseLinkTarget(raw: string): string {
   return (dest.split(/[#?]/)[0] ?? "").trim();
 }
 
+const FENCE_RE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+
+/** Blank out fenced code blocks, per CommonMark: a run of 3+ backticks or
+ * tildes opens one, a bare run of the same character at least as long (or the
+ * end of the document) closes it. Markdown inside a fence is sample text, not
+ * a link, so `[guide](references/your-guide.md)` in a ```markdown example must
+ * not raise SC101. Line count is preserved. */
+export function stripFencedCode(body: string): string {
+  let fence = "";
+  return body
+    .split(/\r?\n/)
+    .map((line) => {
+      const m = FENCE_RE.exec(line);
+      const run = m?.[1] ?? "";
+      const rest = m?.[2] ?? "";
+      if (!fence) {
+        // A backtick fence's info string cannot itself contain a backtick.
+        if (!run || (run[0] === "`" && rest.includes("`"))) return line;
+        fence = run;
+        return "";
+      }
+      if (run[0] === fence[0] && run.length >= fence.length && !rest.trim()) {
+        fence = "";
+      }
+      return "";
+    })
+    .join("\n");
+}
+
 /** Every relative-file reference in a markdown body: link destinations plus
  * inline-code tokens pointing into the conventional bundled directories.
- * Unfiltered -- callers decide what counts as a URL, anchor or placeholder. */
-export function extractBodyReferences(body: string): string[] {
+ * Fenced code blocks are skipped. Unfiltered otherwise -- callers decide what
+ * counts as a URL, anchor or placeholder. */
+export function extractBodyReferences(markdown: string): string[] {
+  const body = stripFencedCode(markdown);
   const refs = new Set<string>();
   for (const m of body.matchAll(MARKDOWN_LINK_RE)) {
     const target = parseLinkTarget(m[1] ?? "");

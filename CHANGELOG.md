@@ -5,6 +5,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-10-18
+
+### Fixed
+
+- SC101 and SC102 fired on links inside fenced code blocks, so a skill that shows link syntax in a ```` ```markdown ```` sample failed `--fail-on warning`. Reference extraction in `src/lint/links.ts` now skips fenced blocks (backtick and tilde, CRLF included), which also covers the SC103 chain walk.
+- Overlapping or repeated path arguments (`skills skills/a`, `x ./x`) linted the same skill twice and raised a false SC105 duplicate-skill-name warning. Every discovered skill directory is now resolved to an absolute path before deduping.
+- `skillcheck.config.json` overrides never reached SC105 or the evals findings (SC401, SC402): they were applied inside `lintSkillDir`, before either ran. The CLI now applies overrides last, to every finding.
+- A `skillcheck.config.json` that failed to parse was silently ignored, dropping every override and ignore glob, and an unknown level such as `"warnn"` produced findings no counter saw, so they never gated CI. Invalid JSON, a non-object config, an unknown rule and an unknown level now exit 2. `warning` is accepted as a spelling of `warn`.
+- The job-summary table escaped `|` without escaping `\` first, so a message ending in a backslash could still split a cell (CodeQL `js/incomplete-sanitization`). Skill names in that table are escaped too.
+
+### Security
+
+- `brace-expansion` override raised to `>=5.0.12` (GHSA-6j4f-fj2g-mc7p, GHSA-qhr7-859c-m2p7, GHSA-q2hr-2g5m-vwhr; reached through `glob` at runtime), and `source-map-js` pinned to `>=1.2.2` (GHSA-68fv-2mgg-jv7q, dev only). `pnpm audit` is clean.
+- CI workflow declares `permissions: contents: read` instead of inheriting the repository default token scope (CodeQL `actions/missing-workflow-permissions`).
+
+### Changed
+
+- Dependencies: tsup 9.0.0, zod 4.6.7, yaml 2.9.1, Biome 2.5.15, vitest 5.0.5, @types/node 26.6.5, pnpm 12.14.0. `biome.json` migrated from the deprecated `recommended` flag to `preset`.
+- README: GitHub Marketplace badge, the action example pinned to the latest release (v0.2.5, was v0.2.2), a "How it works" section with a pipeline diagram, and the config level rules.
+
 ## [0.2.5] - 2026-09-25
 
 First tagged, released and npm-published version after 0.2.2: it also ships the 0.2.3 and 0.2.4 changes below, which were merged but never released on their own.
