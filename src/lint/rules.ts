@@ -395,6 +395,23 @@ function scanUnquotedColons(parsed: ParsedSkill, findings: Finding[]): void {
   }
 }
 
+/** Example paths, not references: globs (`scripts/*.sh`), angle-bracket or
+ * ellipsis placeholders (`references/<name>.md`, `assets/...`), and bare words
+ * with no slash or extension (`[Title](URL)`). Found by the corpus scan
+ * (docs/corpus.md), where they were a large share of the SC101 false positives. */
+function isPlaceholderPath(target: string): boolean {
+  if (/[*<>|]|\.\.\./.test(target)) return true;
+  return !target.includes("/") && !target.includes(".");
+}
+
+/** Dotfiles are never in the bundled-file list (listBundledFiles skips them),
+ * so a reference to one cannot be checked. */
+function hasHiddenSegment(path: string): boolean {
+  return path
+    .split("/")
+    .some((seg) => seg.startsWith(".") && seg !== "." && seg !== "..");
+}
+
 /** Extract relative file references from the body and check them against the
  * actual bundled files. */
 function referenceChecks(
@@ -404,6 +421,15 @@ function referenceChecks(
   const findings: Finding[] = [];
   const body = parsed.body;
   const bundled = new Set(bundledFiles.map((f) => f.replace(/\\/g, "/")));
+  // Directories holding at least one bundled file: `references/workers/` names
+  // a directory, not a missing file.
+  const bundledDirs = new Set<string>();
+  for (const f of bundled) {
+    const parts = f.split("/");
+    for (let i = 1; i < parts.length; i++) {
+      bundledDirs.add(parts.slice(0, i).join("/"));
+    }
+  }
 
   // markdown link destinations + conventional-dir inline code (see links.ts)
   const refs = extractBodyReferencesWithLines(body);
@@ -425,8 +451,18 @@ function referenceChecks(
       );
       continue;
     }
-    const normalized = target.replace(/^\.\//, "").replace(/\\/g, "/");
-    if (bundled.size > 0 && !bundled.has(normalized)) {
+    if (isPlaceholderPath(target)) continue;
+    const normalized = target
+      .replace(/^\{baseDir\}\//, "") // legacy placeholder, SC108 reports it
+      .replace(/^\.\//, "")
+      .replace(/\\/g, "/")
+      .replace(/\/+$/, "");
+    if (
+      bundled.size > 0 &&
+      !bundled.has(normalized) &&
+      !bundledDirs.has(normalized) &&
+      !hasHiddenSegment(normalized)
+    ) {
       findings.push(
         make(
           "SC101",

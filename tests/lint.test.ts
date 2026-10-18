@@ -585,3 +585,41 @@ describe("line-accurate findings", () => {
     expect(sc103).toMatchObject({ file: "references/guide.md", line: 3 });
   });
 });
+
+describe("SC101 guards found by the corpus scan", () => {
+  it("directories, {baseDir} paths, globs, placeholders and dotfiles are not missing files", async () => {
+    const dir = await makeSkill(
+      "corpus-guards",
+      [
+        "---",
+        "name: corpus-guards",
+        "description: d",
+        "---",
+        "Pick a guide under [workers](references/workers/) or `references/pages`.",
+        "Read [setup]({baseDir}/references/workers/setup.md).",
+        "Run `scripts/*.sh`, then open `references/<name>.md` or `assets/...`.",
+        "End with a line like [Title](URL).",
+        "Keep [ignores](scripts/.gitignore) in sync.",
+        "",
+      ].join("\n"),
+      {
+        "references/workers/setup.md": "x",
+        "references/pages/index.md": "x",
+        "scripts/run.sh": "x",
+      },
+    );
+    const result = await lintSkillDir(dir);
+    expect(result.findings.filter((f) => f.code === "SC101")).toEqual([]);
+  });
+
+  it("a {baseDir} path to a file that is really missing still fires", async () => {
+    const dir = await makeSkill(
+      "basedir-missing",
+      "---\nname: basedir-missing\ndescription: d\n---\nRead [x]({baseDir}/references/gone.md).\n",
+      { "references/here.md": "x" },
+    );
+    const codes = (await lintSkillDir(dir)).findings.map((f) => f.code);
+    expect(codes).toContain("SC101");
+    expect(codes).toContain("SC108");
+  });
+});
