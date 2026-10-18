@@ -310,6 +310,10 @@ async function expandSkillDirs(
       cwd: p,
       ignore: ["**/node_modules/**", "**/.git/**", ...extraIgnore],
       absolute: true,
+      // Skills live in dot directories by convention (.claude/skills,
+      // .github/skills, .agents/skills, openai/skills' .curated); glob skips
+      // those by default, so `lint .` used to find none of them.
+      dot: true,
     });
     for (const m of matches) {
       dirs.add(join(m, ".."));
