@@ -123,7 +123,10 @@ export function crossSkillFindings(results: LintResult[]): void {
   }
 }
 
-function applyOverrides(findings: Finding[], options: LintOptions): Finding[] {
+export function applyOverrides(
+  findings: Finding[],
+  options: LintOptions,
+): Finding[] {
   const overrides = options.ruleOverrides;
   if (!overrides) return findings;
   const resolved = new Map<string, "off" | Severity>();

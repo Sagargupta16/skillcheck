@@ -1,10 +1,15 @@
 #!/usr/bin/env node
 import { appendFile, readFile, stat, writeFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { Command } from "commander";
 import { glob } from "glob";
 import { checkEvals, initEvals } from "./evals/index.js";
-import { crossSkillFindings, lintSkillDir } from "./lint/index.js";
+import {
+  applyOverrides,
+  crossSkillFindings,
+  lintSkillDir,
+} from "./lint/index.js";
+import { getRule } from "./lint/registry.js";
 import { toWorkflowCommands } from "./output/github.js";
 import { toSarif } from "./output/sarif.js";
 import type { LintResult, Profile } from "./types.js";
@@ -116,15 +121,22 @@ program
 
     const results: LintResult[] = [];
     for (const dir of skillDirs) {
-      const result = await lintSkillDir(dir, {
-        profile,
-        ...(config?.rules ? { ruleOverrides: config.rules } : {}),
-      });
+      const result = await lintSkillDir(dir, { profile });
       result.findings.push(...(await checkEvals(dir, result.skillName)));
       recount(result);
       results.push(result);
     }
     crossSkillFindings(results);
+    // Config overrides apply last so they also reach the evals (SC4xx) and
+    // cross-skill (SC105) findings, which lintSkillDir never sees.
+    if (config?.rules) {
+      for (const r of results) {
+        r.findings = applyOverrides(r.findings, {
+          ruleOverrides: config.rules,
+        });
+        recount(r);
+      }
+    }
 
     if (opts.sarif) {
       await writeFile(opts.sarif, toSarif(results, VERSION), "utf8");
@@ -206,13 +218,47 @@ function parseMaxWarnings(raw: string | undefined): number {
   return n;
 }
 
+const CONFIG_FILE = "skillcheck.config.json";
+const RULE_LEVELS = ["off", "info", "warn", "warning", "error"];
+
+/** Absent config means zero-config. A config that exists but cannot be used
+ * exits 2, same as a bad flag: swallowing a JSON syntax error dropped every
+ * override and ignore glob, and an unknown level (`"warnn"`) produced findings
+ * that no error/warning/info counter saw, so they never gated CI. */
 async function loadConfig(): Promise<Config | null> {
+  let raw: string;
   try {
-    const raw = await readFile("skillcheck.config.json", "utf8");
-    return JSON.parse(raw) as Config;
-  } catch {
-    return null;
+    raw = await readFile(CONFIG_FILE, "utf8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw err;
   }
+  let config: Config;
+  try {
+    config = JSON.parse(raw) as Config;
+  } catch (err) {
+    console.error(
+      `invalid ${CONFIG_FILE}: ${err instanceof Error ? err.message : err}`,
+    );
+    process.exit(2);
+  }
+  if (typeof config !== "object" || config === null || Array.isArray(config)) {
+    console.error(`invalid ${CONFIG_FILE}: expected a JSON object`);
+    process.exit(2);
+  }
+  for (const [key, level] of Object.entries(config.rules ?? {})) {
+    if (!getRule(key)) {
+      console.error(`invalid ${CONFIG_FILE}: unknown rule '${key}'`);
+      process.exit(2);
+    }
+    if (!RULE_LEVELS.includes(level)) {
+      console.error(
+        `invalid ${CONFIG_FILE}: rule '${key}' has level '${level}' (expected one of: ${RULE_LEVELS.join(", ")})`,
+      );
+      process.exit(2);
+    }
+  }
+  return config;
 }
 
 /** Resolve inputs: a SKILL.md file resolves to its parent, a dir with SKILL.md
@@ -235,14 +281,16 @@ async function expandSkillDirs(
         console.error(`Not a directory: ${p}`);
         process.exit(2);
       }
-      dirs.add(dirname(p) || ".");
+      dirs.add(resolve(dirname(p)));
       continue;
     }
+    // Absolute keys, like the glob branch below: `a a/b` or `x ./x` must not
+    // lint one skill twice and raise a false SC105 duplicate-skill-name.
     if (
       (await exists(join(p, "SKILL.md"))) ||
       (await exists(join(p, "skill.md")))
     ) {
-      dirs.add(p);
+      dirs.add(resolve(p));
       continue;
     }
     const matches = await glob("**/{SKILL,skill}.md", {
@@ -277,6 +325,16 @@ function recount(r: LintResult): void {
   r.infoCount = r.findings.filter((f) => f.severity === "info").length;
 }
 
+/** One markdown table cell. Backslashes are escaped before pipes, otherwise a
+ * skill name or message ending in `\` turns the added `\|` into an escaped
+ * backslash followed by a live column separator. Newlines would end the row. */
+function tableCell(value: string): string {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/\|/g, "\\|")
+    .replace(/\r?\n/g, " ");
+}
+
 /** GitHub Actions integration: outputs + step summary when env vars exist. */
 async function emitGithubOutputs(results: LintResult[]): Promise<void> {
   const errors = results.reduce((s, r) => s + r.errorCount, 0);
@@ -308,7 +366,7 @@ async function emitGithubOutputs(results: LintResult[]): Promise<void> {
       for (const r of withFindings) {
         for (const f of r.findings.slice(0, 50)) {
           lines.push(
-            `| ${r.skillName ?? r.skillDir} | ${f.code} | ${f.severity} | ${f.message.replace(/\|/g, "\\|").replace(/\r?\n/g, " ")} |`,
+            `| ${tableCell(r.skillName ?? r.skillDir)} | ${f.code} | ${f.severity} | ${tableCell(f.message)} |`,
           );
         }
       }

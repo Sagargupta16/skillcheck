@@ -485,3 +485,31 @@ describe("markdown link destinations (SC101 false-positive guards)", () => {
     expect(result.findings.filter((f) => f.code === "SC101")).toEqual([]);
   });
 });
+
+describe("fenced code blocks (SC101 false-positive guards)", () => {
+  it("links inside a fenced example are not references", async () => {
+    const fence = "```";
+    const dir = await makeSkill(
+      "fenced-example",
+      `---\nname: fenced-example\ndescription: d\n---\nWrite links like this:\n\n${fence}markdown\nSee [guide](references/your-guide.md).\n${fence}\n\n~~~~\n[abs](/etc/passwd)\n~~~~\n`,
+    );
+    const result = await lintSkillDir(dir);
+    expect(
+      result.findings.filter((f) => f.code === "SC101" || f.code === "SC102"),
+    ).toEqual([]);
+  });
+
+  it("a link after the fence closes still fires, CRLF included", async () => {
+    const fence = "```";
+    const dir = await makeSkill(
+      "fenced-then-broken",
+      `---\r\nname: fenced-then-broken\r\ndescription: d\r\n---\r\n${fence}\r\n[ok](references/sample.md)\r\n${fence}\r\nSee [gone](references/gone.md).\r\n`,
+    );
+    const result = await lintSkillDir(dir);
+    expect(
+      result.findings.filter((f) => f.code === "SC101").map((f) => f.message),
+    ).toEqual([
+      "referenced file `references/gone.md` does not exist in the skill directory",
+    ]);
+  });
+});

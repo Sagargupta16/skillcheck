@@ -14,8 +14,9 @@ export default defineConfig({
   // port) no longer exposes, so `dts: true` dies with
   // "Cannot read properties of undefined (reading 'useCaseSensitiveFileNames')".
   // Bumping the dependency cannot fix it -- the plugin is bundled, not
-  // installed, and tsup 8.5.1 is already latest. tsc always supports its own
-  // version, so generating declarations there is version-proof.
+  // installed. tsup 9 re-vendors rollup-plugin-dts 6.5.1, which may work, but
+  // tsc always supports its own version, so generating declarations there
+  // stays version-proof.
   dts: false,
   clean: true,
   target: "node22",

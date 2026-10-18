@@ -2,6 +2,7 @@
 
 [![npm](https://img.shields.io/npm/v/%40sagargupta1610%2Fskillcheck?label=npm)](https://www.npmjs.com/package/@sagargupta1610/skillcheck)
 [![CI](https://github.com/Sagargupta16/skillcheck/actions/workflows/ci.yml/badge.svg)](https://github.com/Sagargupta16/skillcheck/actions/workflows/ci.yml)
+[![GitHub Marketplace](https://img.shields.io/badge/marketplace-skillcheck%20for%20agent%20skills-purple?logo=github)](https://github.com/marketplace/actions/skillcheck-for-agent-skills)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node >= 22](https://img.shields.io/badge/node-%3E%3D22-brightgreen)](package.json)
 
@@ -72,7 +73,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: Sagargupta16/skillcheck@v0.2.2
+      - uses: Sagargupta16/skillcheck@v0.2.5
         with:
           path: skills/
           fail-on: error
@@ -86,6 +87,8 @@ jobs:
 ```
 
 Inline PR annotations come free via workflow commands; a full report table lands in the job summary automatically. Action outputs: `error-count`, `warning-count`, `sarif-file`.
+
+The action is listed on the [GitHub Marketplace](https://github.com/marketplace/actions/skillcheck-for-agent-skills). The tag pins `action.yml`; the CLI it runs comes from npm, set by the `version` input (default `latest`). Pin `version` too for fully reproducible CI.
 
 ## Rules
 
@@ -121,13 +124,42 @@ Optional `skillcheck.config.json` in your project root:
 }
 ```
 
-Codes and kebab-case aliases are interchangeable. Zero-config works.
+Codes and kebab-case aliases are interchangeable. Levels are `off`, `info`, `warn` (or `warning`) and `error`, and they apply to every finding, including evals (SC4xx) and cross-skill (SC105) ones. Zero-config works. A config that exists but is unusable (invalid JSON, an unknown rule, an unknown level) exits 2, like a bad flag.
 
 `ignore` takes globs applied during discovery, relative to each path you pass on the command line, so vendored or fixture skills never reach the rules. `node_modules` and `.git` are always excluded.
 
 ## Evals (trigger tests)
 
 `skillcheck eval init` scaffolds `evals/evals.json` -- a strict superset of Anthropic skill-creator's format (anything skill-creator writes, skillcheck validates unchanged) plus a `triggers` array covering four trigger classes: explicit, implicit, contextual, and negative (the near-misses that catch over-triggering). `skillcheck lint` validates the file automatically when present. Runtime execution of these tests lands in v0.3.
+
+## How it works
+
+```mermaid
+flowchart LR
+  A[paths + skillcheck.config.json] --> B[discover SKILL.md<br/>glob, ignore, dedupe]
+  B --> C[parse frontmatter<br/>split + strict YAML]
+  C --> D[rules + profile<br/>SC0xx to SC3xx]
+  E[(rule registry<br/>36 codes)] --> D
+  F[(extension registry<br/>19 fields, 3 runtimes)] --> D
+  D --> G[evals.json check<br/>SC4xx]
+  G --> H[cross-skill<br/>SC105]
+  H --> I[config overrides]
+  I --> J{format}
+  J --> K[pretty / concise / json]
+  J --> L[GitHub workflow commands<br/>+ step summary]
+  J --> M[SARIF 2.1.0]
+  I --> N[exit code 0 / 1 / 2]
+```
+
+| Piece | File | Why it is built this way |
+| --- | --- | --- |
+| Frontmatter splitter | [src/lint/parse.ts](src/lint/parse.ts) | Replicates skills-ref's `split("---", 2)` and strictyaml rules on top of the `yaml` parser, so an error here means the reference validator would fail too |
+| Rule registry | [src/lint/registry.ts](src/lint/registry.ts) | One table drives the CLI, SARIF rule metadata and [docs/rules.md](docs/rules.md); CI regenerates the doc and fails on drift |
+| Extension registry | [src/extensions.ts](src/extensions.ts) | Per-runtime frontmatter fields with value validators, so `model` warns as Claude Code only instead of a hard SC018 |
+| Reference checks | [src/lint/links.ts](src/lint/links.ts) | CommonMark-aware link parsing (titles, angle brackets, fenced code skipped) shared by SC101 to SC103 |
+| Output | [src/output/](src/output/) | Repo-relative paths so annotations attach to the PR diff; workflow-command escaping so a hostile SKILL.md cannot inject `::error::` lines |
+
+Picking `SKILL.md` over `skill.md` reads real directory entries rather than `readFile("SKILL.md")`, because case-insensitive filesystems on Windows and macOS would otherwise accept `skill.md` silently. CI runs ubuntu and windows on Node 22 and 24 for that reason.
 
 ## Roadmap
 
@@ -140,7 +172,7 @@ Codes and kebab-case aliases are interchangeable. Zero-config works.
 
 ```bash
 pnpm install
-pnpm test        # vitest: skills-ref parity, i18n names, workflow-command escaping
+pnpm test        # vitest: skills-ref parity, i18n names, reference parsing, workflow-command escaping
 pnpm build       # tsup -> dist/*.js, tsc --emitDeclarationOnly -> dist/*.d.ts
 pnpm lint        # biome
 pnpm docs:rules  # regenerate docs/rules.md from src/lint/registry.ts
