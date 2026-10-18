@@ -56,20 +56,44 @@ export function stripFencedCode(body: string): string {
     .join("\n");
 }
 
-/** Every relative-file reference in a markdown body: link destinations plus
- * inline-code tokens pointing into the conventional bundled directories.
- * Fenced code blocks are skipped. Unfiltered otherwise -- callers decide what
- * counts as a URL, anchor or placeholder. */
-export function extractBodyReferences(markdown: string): string[] {
+export interface BodyReference {
+  target: string;
+  /** 1-based line of the first occurrence, relative to the markdown passed in. */
+  line: number;
+}
+
+/** 1-based line number of a character offset. */
+function lineAt(text: string, index: number): number {
+  let line = 1;
+  for (let i = 0; i < index; i++) if (text.charCodeAt(i) === 10) line++;
+  return line;
+}
+
+/** Every relative-file reference in a markdown body, with the line it first
+ * appears on: link destinations plus inline-code tokens pointing into the
+ * conventional bundled directories. Fenced code blocks are skipped (line count
+ * preserved, so the lines stay true). Unfiltered otherwise -- callers decide
+ * what counts as a URL, anchor or placeholder. */
+export function extractBodyReferencesWithLines(
+  markdown: string,
+): BodyReference[] {
   const body = stripFencedCode(markdown);
-  const refs = new Set<string>();
+  const refs = new Map<string, number>();
   for (const m of body.matchAll(MARKDOWN_LINK_RE)) {
-    const target = parseLinkTarget(m[1] ?? "");
-    if (target) refs.add(target);
+    const raw = m[1] ?? "";
+    const target = parseLinkTarget(raw);
+    // Link text may wrap; anchor to the line holding the destination.
+    const at = m.index + m[0].length - raw.length - 1;
+    if (target && !refs.has(target)) refs.set(target, lineAt(body, at));
   }
   for (const m of body.matchAll(CONVENTIONAL_DIR_CODE_RE)) {
     const target = (m[1] ?? "").trim();
-    if (target) refs.add(target);
+    if (target && !refs.has(target)) refs.set(target, lineAt(body, m.index));
   }
-  return [...refs];
+  return [...refs].map(([target, line]) => ({ target, line }));
+}
+
+/** {@link extractBodyReferencesWithLines} without the line numbers. */
+export function extractBodyReferences(markdown: string): string[] {
+  return extractBodyReferencesWithLines(markdown).map((r) => r.target);
 }

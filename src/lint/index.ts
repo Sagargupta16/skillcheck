@@ -1,7 +1,10 @@
 import { readdir, readFile } from "node:fs/promises";
 import { basename, join, relative, resolve } from "node:path";
 import type { Finding, LintOptions, LintResult, Severity } from "../types.js";
-import { extractBodyReferences } from "./links.js";
+import {
+  extractBodyReferences,
+  extractBodyReferencesWithLines,
+} from "./links.js";
 import { parseSkillMd } from "./parse.js";
 import { getRule } from "./registry.js";
 import { runRules } from "./rules.js";
@@ -195,10 +198,22 @@ async function deepReferenceChains(
         severity: "info",
         message: `\`${normalized}\` references further bundled files (${childRefs.slice(0, 3).join(", ")}${childRefs.length > 3 ? ", ..." : ""}) -- spec recommends keeping references one level deep from SKILL.md`,
         file: normalized,
+        ...lineOf(childBody, childRefs[0]),
       });
     }
   }
   return findings;
+}
+
+/** `{ line }` of the first reference to `target` in `markdown`, or nothing. */
+function lineOf(
+  markdown: string,
+  target: string | undefined,
+): { line?: number } {
+  const line = extractBodyReferencesWithLines(markdown).find(
+    (r) => r.target === target,
+  )?.line;
+  return line === undefined ? {} : { line };
 }
 
 async function listBundledFiles(skillDir: string): Promise<string[]> {

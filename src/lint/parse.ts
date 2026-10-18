@@ -29,8 +29,13 @@ export function parseSkillMd(source: string): ParsedSkill {
   }
 
   const rawFrontmatter = parts[1] ?? "";
-  const body = (parts[2] ?? "").replace(/^\r?\n/, "");
-  const bodyStartLine = 3 + (rawFrontmatter.match(/\r?\n/g)?.length ?? 0);
+  const rest = parts[2] ?? "";
+  const body = rest.replace(/^\r?\n/, "");
+  // The opening --- is line 1 and every newline inside the frontmatter moves
+  // the closing --- down one; the body starts on the next line unless it was
+  // written on the closing line itself.
+  const closingLine = 1 + (rawFrontmatter.match(/\n/g)?.length ?? 0);
+  const bodyStartLine = closingLine + (/^\r?\n/.test(rest) ? 1 : 0);
 
   // strictyaml semantics on top of the JS parser: flow collections, tags,
   // and duplicate keys are rejected (skills-ref uses strictyaml).
