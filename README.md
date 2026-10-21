@@ -182,22 +182,13 @@ Codes and kebab-case aliases are interchangeable. Levels are `off`, `info`, `war
 
 ## How it works
 
-```mermaid
-flowchart LR
-  A[paths + skillcheck.config.json] --> B[discover SKILL.md<br/>glob, ignore, dedupe]
-  B --> C[parse frontmatter<br/>split + strict YAML]
-  C --> D[rules + profile<br/>SC0xx to SC3xx]
-  E[(rule registry<br/>36 codes)] --> D
-  F[(extension registry<br/>19 fields, 3 runtimes)] --> D
-  D --> G[evals.json check<br/>SC4xx]
-  G --> H[cross-skill<br/>SC105]
-  H --> I[config overrides]
-  I --> J{format}
-  J --> K[pretty / concise / json]
-  J --> L[GitHub workflow commands<br/>+ step summary]
-  J --> M[SARIF 2.1.0]
-  I --> N[exit code 0 / 1 / 2]
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/how-it-works-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/diagrams/how-it-works-light.svg">
+  <img width="880" src="docs/diagrams/how-it-works-light.svg" alt="How skillcheck works. A pull request runs the SkillCheck action; the action, the pre-commit hook and the skillcheck lint command all feed one pipeline in the @sagargupta1610/skillcheck package. It discovers skills (glob, dot directories, config ignore globs) and reads each SKILL.md (SC001, SC020, SC103, SC106). The pure lint core splits the frontmatter (skills-ref split, strict YAML) and runs rules SC0xx to SC3xx in the strict or lenient profile, fed by the rule registry (36 codes, 3 severity tiers) and the extension registry (19 fields, 3 runtimes); the playground on GitHub Pages runs that same core in the browser. The evals check (SC4xx) and the cross-skill and config step (SC105, rule levels, exit 0, 1 or 2) come next. Outputs: the report (pretty, concise, json, sarif), which in --format github becomes inline PR annotations; the job summary with error-count and warning-count; a shields.io badge JSON; and a SARIF 2.1.0 file that an optional upload-sarif step in your workflow sends to GitHub code scanning.">
+</picture>
+
+The spec behind the picture is [`docs/diagrams/how-it-works.yaml`](docs/diagrams/how-it-works.yaml), rendered with [orrery](https://github.com/Sagargupta16/orrery).
 
 | Piece | File | Why it is built this way |
 | --- | --- | --- |

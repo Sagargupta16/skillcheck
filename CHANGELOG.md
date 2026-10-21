@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-10-21
+
+### Changed
+
+- README: the "How it works" Mermaid flowchart is now an architecture diagram drawn with [orrery](https://github.com/Sagargupta16/orrery), in dark and light variants that follow the reader's theme. It keeps every step of the old chart and adds the ways in (the action on a pull request, the pre-commit hook, the CLI, the playground running the pure lint core), the disk-only checks (SC001, SC020, SC103, SC106), the badge JSON and the optional SARIF upload to code scanning. The spec is [docs/diagrams/how-it-works.yaml](docs/diagrams/how-it-works.yaml), with `evidence:` on every node pointing at the code it draws.
+
 ## [0.2.7] - 2026-10-18
 
 ### Added
