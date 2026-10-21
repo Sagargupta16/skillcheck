@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Sagargupta16/orrery/main/skills/orrery/references/diagram.schema.json
+# Rendered with orrery (github.com/Sagargupta16/orrery):
+#   orrery render docs/diagrams/how-it-works.yaml -o docs/diagrams/how-it-works -f svg --theme both
+# Reviewed at README width: orrery review docs/diagrams/how-it-works.yaml --width 880
+title: How skillcheck works
+subtitle: One lint pipeline behind the CLI, the GitHub Action and the pre-commit hook. The playground runs its pure core in the browser.
+direction: down
+legend:
+  dashed: Optional, a step in your own workflow
+
+groups:
+  pkg: { type: box, label: "@sagargupta1610/skillcheck", icon: logos:npm-icon, evidence: package.json:2 }
+  # Everything reached from lintSkillSource: no Node imports, so the playground bundles it as is.
+  core: { type: zone, label: Pure lint core, in: pkg, evidence: src/lint/source.ts:29#lintSkillSource }
+
+nodes:
+  # Ways in. The action and the hook both run the npm release through npx.
+  pr: { icon: github:git-pull-request, label: Pull request, evidence: action.yml:3 }
+  action: { icon: logos:github-actions, label: SkillCheck action, note: "composite, runs npx", align: pr, evidence: action.yml:59#npx }
+  hook: { icon: si:precommit, label: pre-commit hook, note: staged SKILL.md files, evidence: .pre-commit-hooks.yaml:12#npx }
+  term: { icon: tabler:terminal-2, label: skillcheck lint, note: your terminal, evidence: src/cli.ts:66#lint }
+  play: { icon: tabler:browser, label: Playground, note: GitHub Pages, evidence: site/playground.ts:252#lintSkillSource }
+
+  # The pipeline, in call order. Listed so each row reads toward the next one.
+  discover: { icon: tabler:folder-search, label: Discover skills, note: "glob, dot dirs, config ignore", in: pkg, evidence: src/cli.ts:279#expandSkillDirs }
+  read: { icon: tabler:file-text, label: Read SKILL.md, note: "SC001, SC020, SC103, SC106", in: pkg, align: discover, evidence: src/lint/index.ts:12#lintSkillDir }
+  ext: { icon: tabler:puzzle, label: Extension registry, note: "19 fields, 3 runtimes", in: core, evidence: src/extensions.ts:28#KNOWN_EXTENSIONS }
+  registry: { icon: tabler:list-numbers, label: Rule registry, note: "36 codes, 3 severity tiers", in: core, align: ext, evidence: src/lint/registry.ts:5#RULES }
+  rules: { icon: tabler:list-check, label: Rules SC0xx to SC3xx, note: strict or lenient profile, in: core, align: ext, evidence: src/lint/rules.ts:97#runRules }
+  parse: { icon: tabler:file-code, label: Split frontmatter, note: "skills-ref split, strict YAML", in: core, align: ext, evidence: src/lint/parse.ts:6#parseSkillMd }
+  gate: { icon: tabler:adjustments, label: Cross-skill and config, note: "SC105, rule levels, exit 0/1/2", in: pkg, evidence: [src/cli.ts:135#crossSkillFindings, src/cli.ts:140#applyOverrides] }
+  evals: { icon: tabler:test-pipe, label: Evals check, note: SC4xx on evals.json, in: pkg, align: gate, evidence: src/evals/index.ts:18#checkEvals }
+
+  # What comes out. Annotations are the report in --format github, which the runner reads from stdout.
+  annot: { icon: github:code-review, label: PR annotations, note: inline on the diff, align: report, evidence: src/output/github.ts:30#toWorkflowCommands }
+  report: { icon: tabler:terminal, label: Report, note: "pretty, concise, json, sarif", evidence: src/cli.ts:395#report }
+  summary: { icon: github:checklist, label: Job summary, note: "error-count, warning-count", evidence: src/cli.ts:356#emitGithubOutputs }
+  badge: { icon: si:shieldsdotio, label: Badge JSON, note: shields.io endpoint, evidence: src/output/badge.ts:20#toBadge }
+  sarif: { icon: tabler:file-analytics, label: SARIF 2.1.0, note: --sarif file, evidence: src/output/sarif.ts:14#toSarif }
+  scanning: { icon: github:shield-check, label: Code scanning, note: alerts in Security, align: sarif, evidence: README.md:109#upload-sarif }
+
+edges:
+  - pr -> action
+  - action, hook, term -> discover
+  - play -> core
+  - discover -> read -> parse -> rules -> evals -> gate
+  - registry, ext -> rules
+  - gate -> report, summary, badge, sarif
+  - report -> annot: --format github
+  - sarif --> scanning: upload-sarif
