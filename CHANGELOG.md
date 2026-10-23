@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+## [0.2.9] - 2026-10-23
+
+### Changed
+
+- README: redrew the "How it works" diagram with orrery 0.12.0, which draws icons at 64 px instead of 48 px. The spec is unchanged.
+
 ## [0.2.8] - 2026-10-21
 
 ### Changed
