@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+## [0.2.10] - 2026-10-24
+
+### Security
+
+- SC021's unquoted-colon regex ran in quadratic time on a long `name:` or `description:` line (CodeQL `js/polynomial-redos`): a 20,000-character line took 190 to 400 ms and the time grew with the square of the length. It now matches the value's first character with a class that cannot overlap `\s`, and checks for `": "` with `includes()`, so the same lines take under 1 ms.
+
+### Fixed
+
+- SC021 flagged a correctly quoted value with two or more spaces after the colon (`description:  "Use when: testing"`), because the old regex's `\s+` gave back a space and the quote check then looked at that space. It now looks at the value's first non-space character.
+
 ## [0.2.9] - 2026-10-23
 
 ### Changed
