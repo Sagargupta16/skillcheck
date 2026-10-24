@@ -381,8 +381,11 @@ export function runRules(ctx: RuleContext): Finding[] {
  * break case is "description: Use this skill when: ..." */
 function scanUnquotedColons(parsed: ParsedSkill, findings: Finding[]): void {
   for (const [i, line] of parsed.rawFrontmatter.split(/\r?\n/).entries()) {
-    const m = /^(name|description):\s+(?!['"|>])(.*: .*)$/.exec(line);
-    if (m) {
+    // The value's first character is matched as a class disjoint from `\s`, and
+    // the ": " test is a plain includes(), so no two quantifiers overlap and the
+    // match stays linear on long lines (CodeQL js/polynomial-redos).
+    const m = /^(name|description):\s+([^\s'"|>].*)$/.exec(line);
+    if (m?.[2]?.includes(": ")) {
       findings.push(
         make(
           "SC021",
