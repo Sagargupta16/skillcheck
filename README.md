@@ -98,7 +98,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: Sagargupta16/skillcheck@v0.2.7
+      - uses: Sagargupta16/skillcheck@v0.2.10
         with:
           path: skills/
           fail-on: error
@@ -131,12 +131,12 @@ The counts are taken after config overrides, so the badge agrees with the exit c
 ```yaml
 repos:
   - repo: https://github.com/Sagargupta16/skillcheck
-    rev: v0.2.7
+    rev: v0.2.10
     hooks:
       - id: skillcheck
 ```
 
-The hook runs on staged `SKILL.md` files. It uses `language: system` and runs the npm release through `npx`, like the action does, so it needs Node 22+ on PATH. To pin the CLI version, override the entry: `entry: npx --yes @sagargupta1610/skillcheck@0.2.7 lint`.
+The hook runs on staged `SKILL.md` files. It uses `language: system` and runs the npm release through `npx`, like the action does, so it needs Node 22+ on PATH. To pin the CLI version, override the entry: `entry: npx --yes @sagargupta1610/skillcheck@0.2.10 lint`.
 
 ## Rules
 

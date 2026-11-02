@@ -24,7 +24,7 @@
   },
   "type": "module",
   "bin": {
-    "skillcheck": "./dist/cli.js"
+    "skillcheck": "dist/cli.js"
   },
   "main": "./dist/index.js",
   "exports": {
